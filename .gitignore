@@ -4,3 +4,4 @@
 .vscode/*
 error_log
 .phpunit.*
+/vendor
