@@ -1,4 +1,15 @@
 {
+    "autoload": {
+        "psr-4": {
+            "Core\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "MailsonPrates",
+            "email": "mailsonprates@gmail.com"
+        }
+    ],
     "require-dev": {
         "pestphp/pest": "^1.23"
     },
