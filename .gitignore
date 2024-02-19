@@ -3,3 +3,4 @@
 .theia/*
 .vscode/*
 error_log
+.phpunit.*
