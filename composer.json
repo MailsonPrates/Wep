@@ -1,4 +1,5 @@
 {
+    "name": "mailsonprates/wep",
     "autoload": {
         "psr-4": {
             "Core\\": "src/"

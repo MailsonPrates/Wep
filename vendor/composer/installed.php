@@ -5,20 +5,11 @@
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'reference' => '8781553d201aeb31bc51110b1804b9d21c27ee61',
-        'name' => '__root__',
+        'reference' => 'e599616392a8b2e32ded6a2a90e9768d07b6641d',
+        'name' => 'mailsonprates/wep',
         'dev' => true,
     ),
     'versions' => array(
-        '__root__' => array(
-            'pretty_version' => 'dev-main',
-            'version' => 'dev-main',
-            'type' => 'library',
-            'install_path' => __DIR__ . '/../../',
-            'aliases' => array(),
-            'reference' => '8781553d201aeb31bc51110b1804b9d21c27ee61',
-            'dev_requirement' => false,
-        ),
         'doctrine/instantiator' => array(
             'pretty_version' => '2.0.0',
             'version' => '2.0.0.0',
@@ -36,6 +27,15 @@
             'aliases' => array(),
             'reference' => 'a139776fa3f5985a50b509f2a02ff0f709d2a546',
             'dev_requirement' => true,
+        ),
+        'mailsonprates/wep' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'reference' => 'e599616392a8b2e32ded6a2a90e9768d07b6641d',
+            'dev_requirement' => false,
         ),
         'myclabs/deep-copy' => array(
             'pretty_version' => '1.11.1',
