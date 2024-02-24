@@ -6,7 +6,7 @@ use Core\Response;
 
 class Executor
 {
-    public static function execute(\PDO $pdo, string $query, array $fields=[], array $config=[])
+    public static function execute(\PDO $pdo, string $query, array $fields=[], $config=[])
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
        
@@ -25,31 +25,33 @@ class Executor
             }
             
 			$result = $stmt->execute();
+
+            $query_method = explode(" ", strtolower($query))[0];
+            $is_select_query = $query_method == "select";
+            $is_update_query = $query_method == "update";
+
+            $error_on_update = $result && ($is_update_query && $stmt->rowCount() < 0);
 			
-			/*if ( !$result || $isUpdate && $stmt->rowCount() < 0 ){
-				return (object) [
-					"error" => true
-				];
-			}
+			if ( !$result || $error_on_update ) return Response::error();
             
-            if ( $isSelect ){
-                $mode_const = strtoupper($mode ?: "assoc");
-                $fetch_mode = constant("PDO::FETCH_$mode_const");
+            if ( $is_select_query ){
+
+                /**
+                 * @todo refatorar
+                 */
+                $fetch_mode_string = strtoupper($config["fetch"] ?? "assoc");
+                $fetch_mode = constant("PDO::FETCH_$fetch_mode_string");
 
                 $fetch_methods = [
                     "OBJ" => "fetch",
                     "ASSOC" => "fetchAll"
                 ];
 
-                $fetch = $fetch_methods[$mode_const] ?? "fetchAll";
+                $fetch = $fetch_methods[$fetch_mode_string] ?? "fetchAll";
                 
                 $data = $stmt->{$fetch}($fetch_mode);
-                return (object) [
-                    "error" => false, 
-                    "data" => $data
-                ];
+                return Response::success($data);
             }
-            */
 
             return Response::success();
 			
