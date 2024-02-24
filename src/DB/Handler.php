@@ -48,11 +48,21 @@ class Handler
      */
     private $duplicateUpdate = [];
     
+    /**
+     * @var string
+     */
+    private $fetch_mode = "";
+
     
     /**
      * @var bool
      */
     private $is_debug = false;
+
+    /**
+     * @var bool
+     */
+    private $raw = false;
 
     /**
      * @var \PDO
@@ -181,7 +191,10 @@ class Handler
 
         $fields = $query->fields ? (array) $query->fields : [];
        
-        return Executor::execute($pdo, $query->string, $fields);
+        return Executor::execute($pdo, $query->string, $fields, [
+            "fetch" => $this->fetch_mode,
+            "raw" => $this->raw
+        ]);
     }
 
 }

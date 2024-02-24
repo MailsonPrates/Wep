@@ -15,6 +15,8 @@ trait Helpers
         $this->joins = [];
         $this->duplicateUpdate = [];
         $this->id_debug = false;
+        $this->fetch_mode = "";
+        $this->raw = false;
     }
 
     /**

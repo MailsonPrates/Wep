@@ -50,8 +50,17 @@ class Executor
                 $fetch = $fetch_methods[$fetch_mode_string] ?? "fetchAll";
                 
                 $data = $stmt->{$fetch}($fetch_mode);
+
+                if ( $config["raw"] ) return Response::success($data, [
+                    "stmt" => $stmt
+                ]);
+
                 return Response::success($data);
             }
+
+            if ( $config["raw"] ) return Response::success([], [
+                "stmt" => $stmt
+            ]);
 
             return Response::success();
 			
