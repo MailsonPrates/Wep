@@ -1,9 +1,9 @@
 <?php 
 
-namespace Core\DB;
+namespace App\Core\DB;
 
-use Core\Response;
-use Core\Singleton;
+use App\Core\Response;
+use App\Core\Singleton;
 
 class Connection extends Singleton
 {

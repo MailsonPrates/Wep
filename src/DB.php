@@ -1,11 +1,11 @@
 <?php
 
-namespace Core;
+namespace App\Core;
 
-use Core\DB\Connection;
-use Core\DB\Handler;
-use Core\DB\Query\Executor;
-use Core\DB\Query\Helpers;
+use App\Core\DB\Connection;
+use App\Core\DB\Handler;
+use App\Core\DB\Query\Executor;
+use App\Core\DB\Query\Helpers;
 
 class DB
 {

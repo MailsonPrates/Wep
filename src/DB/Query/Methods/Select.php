@@ -1,11 +1,11 @@
 <?php
 
-namespace Core\DB\Query\Methods;
+namespace App\Core\DB\Query\Methods;
 
-use Core\Obj;
-use Core\DB\Query\Helpers;
-use Core\DB\Query\Builders\Condition;
-use Core\DB\Query\Methods\MethodInterface;
+use App\Core\Obj;
+use App\Core\DB\Query\Helpers;
+use App\Core\DB\Query\Builders\Condition;
+use App\Core\DB\Query\Methods\MethodInterface;
 
 /**
  * Monta query string select

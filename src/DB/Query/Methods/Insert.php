@@ -1,9 +1,9 @@
 <?php
 
-namespace Core\DB\Query\Methods;
+namespace App\Core\DB\Query\Methods;
 
-use Core\DB\Query\Methods\MethodInterface;
-use Core\Obj;
+use App\Core\DB\Query\Methods\MethodInterface;
+use App\Core\Obj;
 
 class Insert implements MethodInterface
 {

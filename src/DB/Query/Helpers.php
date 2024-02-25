@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\DB\Query;
+namespace App\Core\DB\Query;
 
 trait Helpers
 {

@@ -1,8 +1,8 @@
 <?php
 
-namespace Core\DB\Query\Builders;
+namespace App\Core\DB\Query\Builders;
 
-use Core\Obj;
+use App\Core\Obj;
 
 class Operators
 {

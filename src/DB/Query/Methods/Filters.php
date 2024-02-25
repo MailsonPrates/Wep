@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\DB\Query\Methods;
+namespace App\Core\DB\Query\Methods;
 
 trait Filters
 {

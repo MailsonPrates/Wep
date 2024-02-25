@@ -2,7 +2,7 @@
     "name": "mailsonprates/wep",
     "autoload": {
         "psr-4": {
-            "Core\\": "src/"
+            "App\\Core\\": "src/"
         }
     },
     "authors": [

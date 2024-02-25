@@ -1,8 +1,8 @@
 <?php
 
-namespace Core;
+namespace App\Core;
 
-use Core\Obj;
+use App\Core\Obj;
 
 class Response
 {

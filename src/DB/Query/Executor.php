@@ -1,8 +1,8 @@
 <?php
 
-namespace Core\DB\Query;
+namespace App\Core\DB\Query;
 
-use Core\Response;
+use App\Core\Response;
 
 class Executor
 {

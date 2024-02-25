@@ -1,8 +1,7 @@
 <?php
 
-use Core\DB;
+use App\Core\DB;
 
-use function PHPUnit\Framework\isEmpty;
 
 $user = DB::table("user", [
     "debug" => true

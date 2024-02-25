@@ -1,9 +1,9 @@
 <?php
 
-namespace Core\DB\Query\Builders;
+namespace App\Core\DB\Query\Builders;
 
-use Core\Obj;
-use Core\DB\Query\Builders\Operators;
+use App\Core\Obj;
+use App\Core\DB\Query\Builders\Operators;
 
 class Condition
 {

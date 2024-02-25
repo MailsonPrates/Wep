@@ -1,8 +1,8 @@
 <?php 
 
-namespace Core\DB\Query\Methods;
+namespace App\Core\DB\Query\Methods;
 
-use Core\Obj;
+use App\Core\Obj;
 
 trait Conditional
 {

@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-namespace Core;
+namespace App\Core;
 
 /**
  * Singleton Pattern.
