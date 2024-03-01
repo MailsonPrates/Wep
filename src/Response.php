@@ -65,21 +65,70 @@ class Response
 
     /**
      * Retorna resposta em formato json
-     * Usage:
-     * Response::json("error", "message", ["data" => []]) {error: true, message: "", data: []}
      * 
      * @param string $method
      * @param string|array $content
      * @param array $params
      * 
+     * @example
+     * #1 - Response::json($regular_data);
+     * #2 - Response::json("Messagem de error", "error");
+     * #3 - Response::json($data, "success");
+     * #4 - Response::json("Messagem de error com dados", ["code" => 500], "error");
+     * #5 - Response::json($data, ["other_data" => []], "success");
+     * #6 - Response::json("error|success");
+     * 
      * @return string
      */
-    public static function json($method, $content=null, $params=[])
+    public static function json()
     {
-        $response = isset($method) && is_string($method) 
-            ? self::$method($content, $params) 
-            : $method;
+        $args = func_get_args();
+        $args_count = func_num_args();
 
-        return json_encode($response);
+        $arg_0 = $args[0] ?? '';
+        $arg_1 = $args[1] ?? null;
+        $arg_2 = $args[2] ?? null;
+
+        $response = [];
+        
+        $is_regular_response = $args_count === 1;
+
+        if ( $is_regular_response ){
+
+            // #5 e #6
+            $is_shortcut = is_string($arg_0) && in_array(strtolower($arg_0), ["error", "success"]);
+
+            if ( $is_shortcut ){
+                $method = strtolower($arg_0);
+                $response = self::$method();
+            
+            // #1
+            } else {
+                $response = $arg_0;
+            }
+        }
+
+        // #2 e #3
+        $is_state_response = $args_count === 2 && is_string($arg_1);
+
+        if ( $is_state_response ){
+            $content = $arg_0;
+            $method = $arg_1;
+
+            $response = self::$method($content);
+        }
+
+        // #4 e #5
+        $is_state_params_response = $args_count === 3;
+
+        if ( $is_state_params_response ){
+            $content = $arg_0;
+            $params = $arg_1;
+            $method = $arg_2;
+            
+            $response = self::$method($content, $params);
+        }
+
+        echo json_encode($response);
     }
 }
