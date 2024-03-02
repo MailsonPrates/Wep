@@ -78,6 +78,10 @@ class Response
      * #5 - Response::json($data, ["other_data" => []], "success");
      * #6 - Response::json("error|success");
      * 
+     *  - Response::json(true|false);
+     *  - Response::json($data, true); // success
+     *  - Response::json($data, false); // error
+     * 
      * @return string
      */
     public static function json()
@@ -88,6 +92,15 @@ class Response
         $arg_0 = $args[0] ?? '';
         $arg_1 = $args[1] ?? null;
         $arg_2 = $args[2] ?? null;
+
+        $aliases = [
+            true => 'success',
+            false => 'error'
+        ];
+
+        $arg_0 = is_bool($arg_0) ? $aliases[$arg_0] : $arg_0;
+        $arg_1 = is_bool($arg_1) ? $aliases[$arg_1] : $arg_1;
+        $arg_2 = is_bool($arg_2) ? $aliases[$arg_2] : $arg_2;
 
         $response = [];
         
@@ -109,7 +122,7 @@ class Response
         }
 
         // #2 e #3
-        $is_state_response = $args_count === 2 && is_string($arg_1);
+        $is_state_response = $args_count === 2 && (is_string($arg_1));
 
         if ( $is_state_response ){
             $content = $arg_0;

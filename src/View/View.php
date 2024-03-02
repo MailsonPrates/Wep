@@ -15,7 +15,7 @@ class View
      */
     public function handle($request)
     {
-        $route = $request->getRouteData();
+        $route = $request->routeMapData();
 
         $template_classname = $route->view->template ?? "Main";
         $template = new Template($template_classname, $route, $request);

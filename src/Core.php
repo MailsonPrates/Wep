@@ -127,9 +127,34 @@ class Core
         return $assets_url;
     }
 
-    public static function data($key, $)
+    /**
+     * Retorna dados customizados do app
+     * 
+     * @example
+     * 
+     * App::data('key');
+     * App::data('key|default_key');
+     * App::data('key', 'default value');
+     */
+    public static function data($key=null, $default=null)
     {
+        $data = self::$data ?? [];
 
+        if ( empty($data) ) return null;
+
+        if ( !$key ) return Obj::set($data);;
+
+        $has_key_default = str_contains($key, '|');
+
+        if ( $has_key_default ){
+            $key_parts = explode('|', $key);
+            $key = trim($key_parts[0] ?? '');
+            $key_default = trim($key_parts[1] ?? '');
+
+            return Obj::get($data, $key, $key_default) ?: $default;
+        }
+
+        return Obj::get($data, $key) ?? $default;
     }
 
      /**

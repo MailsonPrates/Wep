@@ -2,7 +2,6 @@
 
 namespace App\Core\Router\Http;
 
-use App\Core\Helper\Core;
 use App\Core\Router\RouteMap;
 
 class Request
@@ -391,13 +390,13 @@ class Request
      * Método responsável por retornar 
      * os dados da rotas extraidas do
      * arquivo de build do map das rotas
-     * @return RouteData
+     * @return RouteMapData
      */
-    public function getRouteData()
+    public function routeMapData()
     {
         $route_method = strtolower($this->httpMethod);
         $route_data = RouteMap::get($this->originalRoute);
-        
+
         return $route_data->{$route_method}();
     }
 }

@@ -6,7 +6,7 @@ namespace App\Core\Router;
  * Objeto contendo os dados da rota
  * para cada http método
  */
-class RouteData
+class RouteMapData
 {
     public $raw = [];
 
@@ -41,7 +41,7 @@ class RouteData
 
     private function setMethodsData($method=""): object
     {
-        $data = $this->raw[$method] ?? false;
+        $data = $this->raw[strtoupper($method)] ?? false;
 
         if ( !$data ) return (object)[];
 

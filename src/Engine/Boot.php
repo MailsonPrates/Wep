@@ -66,6 +66,12 @@ trait Boot
             exit();
         }
 
+        /**
+         * Debug only
+         * @todo criar recurso para debug visual
+         */
+        //return Response::json([]);
+
         Route::execute();
     }
 

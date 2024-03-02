@@ -51,7 +51,11 @@ class RoutesMap
             
             $view = self::getView($item, $module_name);
 
+            $api = $item->api ?? false;
+
             $controller = self::getController($item, $namespace, $module_name);
+
+            $data = $item->data ?? [];
 
             // SETS
             if ( !isset($response[$path]) ){
@@ -59,14 +63,16 @@ class RoutesMap
             }
 
             $response[$path][$type] = [
-                "path" => $path,
-                "type" => $type,
-                "namespace" => $namespace,
-                "view" => $view->main,
+                'path' => $path,
+                'type' => $type,
+                'api' => $api,
+                'data' => $data,
+                'namespace' => $namespace,
+                'view' => $view->main,
                 'view_placeholder' => isset($view->placeholder) && $view->placeholder 
                     ? $view->placeholder
                     : $parent_view_placeholder,
-                "controller" => $controller
+                'controller' => $controller
            ];
         }
 
@@ -179,6 +185,10 @@ class RoutesMap
           
                 if ( !$view ) continue;
 
+                $data = $route->data
+                    ? json_encode( $route->data)
+                    : '{}';
+
                 $view_placeholder = $route->view_placeholder ?? Obj::set();
                 $view_placeholder_path = $view_placeholder->path ?? null;
                 $view_placeholder_name = $view_placeholder->name ?? 'null';
@@ -187,7 +197,7 @@ class RoutesMap
                     $result->imports[] = "import $view_placeholder_name from '$view_placeholder_path';";
                 }
 
-                $result->items[] = "{path:'$path',handler:{ component:{ main:()=>import(`$view`),placeholder:". $view_placeholder_name."}}}";
+                $result->items[] = "{path:'$path',data:$data,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."}}}";
             }
         }
 

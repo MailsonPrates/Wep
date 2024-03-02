@@ -15,8 +15,15 @@ class Obj
         return is_array($props) ? (object) $props : $props;
     }
 
-    public static function get($data=[], $keys="", $default=null)
+    public static function get($data=[], $keys="", $fallback_key=null)
     {
+        $has_dots = str_contains($keys, ".");
+
+        if ( !$has_dots ) return $data[$keys] ?? (
+            $fallback_key
+                ? (isset($data[$fallback_key]) ? $data[$fallback_key] : null)
+                : null
+        );
 
          // Divida as chaves usando o ponto como delimitador
         $keys = explode('.', $keys);
@@ -33,8 +40,8 @@ class Obj
                 $currentValue = $currentValue->$key;
             } else {
                 // Se a chave não existir, retorna o default ou retorne null
-                return $default
-                    ? self::get($data, $default)
+                return $fallback_key
+                    ? self::get($data, $fallback_key)
                     : null;
             }
         }
