@@ -20,6 +20,11 @@ class RoutesMap
     {
         $modules_routes = self::getModulesRoutes();
 
+        /**
+         * @todo implementar o getAppRoutes()
+         * para ter a possibilidade de usar sem módulos
+         */
+
         $build_maps = self::handleBuildMaps($modules_routes);
 
         if ( $raw ) return $build_maps;
@@ -51,11 +56,22 @@ class RoutesMap
             
             $view = self::getView($item, $module_name);
 
+            /**
+             * @todo implementar middlewares global, rota ou grupo
+             */
+
+            /**
+             * @todo implementar o uso de template diferente para a rota ou grupo de rotas
+             * 
+             * module config:
+             * view => ["template" => 'Main']
+             */
+
             $api = $item->api ?? false;
 
             $controller = self::getController($item, $namespace, $module_name);
 
-            $data = $item->data ?? [];
+            $custom = $item->custom ?? [];
 
             // SETS
             if ( !isset($response[$path]) ){
@@ -66,7 +82,7 @@ class RoutesMap
                 'path' => $path,
                 'type' => $type,
                 'api' => $api,
-                'data' => $data,
+                'custom' => $custom,
                 'namespace' => $namespace,
                 'view' => $view->main,
                 'view_placeholder' => isset($view->placeholder) && $view->placeholder 
@@ -185,8 +201,8 @@ class RoutesMap
           
                 if ( !$view ) continue;
 
-                $data = $route->data
-                    ? json_encode( $route->data)
+                $custom = $route->custom
+                    ? json_encode( $route->custom)
                     : '{}';
 
                 $view_placeholder = $route->view_placeholder ?? Obj::set();
@@ -197,7 +213,7 @@ class RoutesMap
                     $result->imports[] = "import $view_placeholder_name from '$view_placeholder_path';";
                 }
 
-                $result->items[] = "{path:'$path',data:$data,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."}}}";
+                $result->items[] = "{path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."}}}";
             }
         }
 

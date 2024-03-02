@@ -12,6 +12,8 @@ class Request
 
     private $data = [];
 
+    private $routeMapData;
+
     private $queryStrings;
 
     private $params;
@@ -390,13 +392,34 @@ class Request
      * Método responsável por retornar 
      * os dados da rotas extraidas do
      * arquivo de build do map das rotas
-     * @return RouteMapData
+     * @param string $key
+     * @param string $defaultValue
+     * 
      */
-    public function routeMapData()
+    public function routeMapData($key=null, $defaultValue=null)
     {
-        $route_method = strtolower($this->httpMethod);
-        $route_data = RouteMap::get($this->originalRoute);
+        if ( !$this->routeMapData ){
+            $route_method = strtolower($this->httpMethod);
+            $route_data = RouteMap::get($this->originalRoute);
 
-        return $route_data->{$route_method}();
+            $route_map_data = $route_data->{$route_method}();
+
+            $this->routeMapData = $route_map_data;
+        }
+
+        return $key ? ($this->routeMapData->{$key} ?? $defaultValue) : $this->routeMapData;
+    }
+
+    /**
+     * Método responsável por retornar todos os dados
+     * da requisição params, query e custom data da rota
+     * @param string $key
+     * @param string $defaultValue
+     */
+    public function data($key=null, $defaultValue=null)
+    {
+        $data = array_merge($this->all(), $this->query(), $this->routeMapData('custom', []));
+
+        return $key ? ($data[$key] ?? $defaultValue) : $data;
     }
 }
