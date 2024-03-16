@@ -21,7 +21,17 @@ trait Conditional
 
         $is_bulk = $args_count === 1 && is_array($arg_0);
 
-       // echo json_encode("where", $is_bulk, $arg_0, $arg_1, $arg_2);
+        /*echo json_encode([
+            'type' => "where", 
+            'args' => func_get_args(), 
+            'count' => $args_count, 
+            'isBulk' => $is_bulk, 
+            'arg0' => $arg_0, 
+            'arg1' => $arg_1, 
+            'arg2' => $arg_2
+        ]);
+
+       exit();*/
 
         $this->buildConditions("where", $is_bulk, $arg_0, $arg_1, $arg_2);
 

@@ -1,8 +1,10 @@
 *.env
 .env
-.theia/*
-.vscode/*
+.theia/
+.vscode/
 error_log
 .phpunit.*
 /vendor
 composer.lock
+package.lock
+/node_modules

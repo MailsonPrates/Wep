@@ -3,6 +3,7 @@
 namespace App\Core;
 
 use App\Core\Engine\Boot;
+use App\Core\Engine\Module;
 
 class Core
 {
@@ -29,10 +30,6 @@ class Core
      * # Case 3: retorna config dos módulos
      * App::config("module", "Pedido")->routes;
      * 
-     * 
-     * @todo
-     * App::config("routes.web", "key");
-     * App::config("routes.api", "key");
      * 
      * @todo 
      * - Implementar cache
@@ -93,23 +90,19 @@ class Core
         }
 
         // # Case 3 - App::config("module", "Pedido")->routes;
+        // App::config("module", "Vendor.Pedido")->routes;
+        // App::config("module", "all")->routes;
         $is_module_config = is_string($arg_0) && in_array($arg_0_lower, ["module", "modules"]);
 
         if ( $is_module_config ){
-            $module_name = ucfirst($arg_1 ?? '');
+            $module_name = $arg_1 ?? '';
 
             if ( !$module_name ) return Obj::set(); /** @todo */
-
-            $module_filename = DIR_MODULES . "/$module_name/config/module.php";
-
-            if ( !file_exists($module_filename) ) return Obj::set(); /** @todo */ 
-
-            $module_content = include_once($module_filename) ?? [];
+            
+            $module_content = Module::getConfigs($module_name);
 
             return Obj::set($module_content);
         }
-
-       
     }
 
     public static function assets($path="", $cacheBooster=null)

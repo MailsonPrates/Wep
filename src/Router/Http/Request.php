@@ -22,18 +22,26 @@ class Request
 
     public $originalRoute;
 
+    public $get = array();
+	public $post = array();
+	public $cookie = array();
+	public $files = array();
+
     public function __construct(
         String $fullUrl,
         String $route,
         array $routeParams
     ) {
+        $this->post = $_POST;
+        $this->get = $_GET ?? [];
+		$this->cookie = $_COOKIE;
+		$this->files = $_FILES;
+
         $this->fullUrl = $fullUrl . ($_SERVER['REQUEST_URI'] ?? '/');
-
         $this->httpMethod = $_SERVER['REQUEST_METHOD'] ?? '';
-        $this->queryStrings = $_GET;
 
-        if (isset($this->queryStrings["route"])) {
-            unset($this->queryStrings["route"]);
+        if (isset($this->get["route"])) {
+            unset($this->get["route"]);
         }
 
         $this->headers = $this->resolveHeaders();
@@ -46,6 +54,24 @@ class Request
             $this->setData();
         }
     }
+
+   /**
+	 * @param	array	$data
+	 * @return	array
+	 */
+	public function clean($data) {
+		if (is_array($data)) {
+			foreach ($data as $key => $value) {
+				unset($data[$key]);
+
+				$data[$this->clean($key)] = $this->clean($value);
+			}
+		} elseif (!is_double($data) && !is_int($data) && !is_float($data) && !is_bool($data)) {
+			$data = htmlspecialchars($data, ENT_COMPAT, 'UTF-8');
+		}
+
+		return $data;
+	}
 
     /**
      * Method responsible for bringing
@@ -150,11 +176,11 @@ class Request
     public function query(?String $name = null, ?String $asDefault = null)
     {
         if (!$name) {
-            return $this->queryStrings;
+            return $this->get;
         }
 
-        if (isset($this->queryStrings[$name])) {
-            return $this->queryStrings[$name];
+        if (isset($this->get[$name])) {
+            return $this->get[$name];
         }
 
         return $asDefault;
@@ -171,19 +197,25 @@ class Request
      */
     public function __get(String $data)
     {
+
         if (isset($this->data[$data])) {
             return $this->data[$data];
         }
 
-        if (isset($this->queryStrings[$data])) {
-            return $this->queryStrings[$data];
+        if (isset($this->get[$data])) {
+            return $this->get[$data];
         }
 
         if (isset($this->params[$data])) {
             return $this->params[$data];
         }
 
+        $custom = $this->routeMapData('custom', null);
+
+        if ( $custom ) return $custom;
+
         return null;
+        
     }
 
     /**
@@ -402,8 +434,12 @@ class Request
             $route_method = strtolower($this->httpMethod);
             $route_data = RouteMap::get($this->originalRoute);
 
-            $route_map_data = $route_data->{$route_method}();
+           
+            $route_map_data = method_exists($route_data, $route_method)
+                ? $route_data->{$route_method}() 
+                : $route_data->{'post'}();
 
+                
             $this->routeMapData = $route_map_data;
         }
 
@@ -412,13 +448,18 @@ class Request
 
     /**
      * Método responsável por retornar todos os dados
-     * da requisição params, query e custom data da rota
+     * da requisição params, query e custom data da rota.
+     * 
      * @param string $key
      * @param string $defaultValue
      */
     public function data($key=null, $defaultValue=null)
     {
-        $data = array_merge($this->all(), $this->query(), $this->routeMapData('custom', []));
+        $data = array_merge(
+            ($this->data ?? []), 
+            $this->get, 
+            $this->routeMapData('custom', [])
+        );
 
         return $key ? ($data[$key] ?? $defaultValue) : $data;
     }

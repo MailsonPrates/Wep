@@ -53,7 +53,7 @@ class Operators
         }
 
         $call_operator_method = call_user_func_array(
-            ["self", $operator_method_name],
+            [self::class, $operator_method_name],
             [$props]
         );
 

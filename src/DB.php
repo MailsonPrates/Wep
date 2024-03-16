@@ -28,11 +28,12 @@ class DB
     {
         $config["table"] = $tableName;
 
-        if ( $config["debug"] ){
+        if ( isset($config["debug"]) && $config["debug"] ){
             self::$pdo = (object)[];
-        }
 
-        self::connect();
+        } else {
+            self::connect();
+        }
 
         return new Handler(self::$pdo, $config);
     }
@@ -45,8 +46,6 @@ class DB
         $has_fields = !empty($fields);
 
         if ( $has_placeholders && !$has_fields ) return Response::error("Missing placeholder values");
-
-        self::connect();
 
         if ( self::$debug ){
 
@@ -61,6 +60,10 @@ class DB
                 'query_raw' => $query_raw,
                 "fields" => $fields
             ];
+        } else {
+
+            self::connect();
+
         }
 
         return Executor::execute(self::$pdo, $query_string, $fields);

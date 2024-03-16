@@ -40,4 +40,18 @@ class Str
         }
         return substr($string, $inicio_pos, $fim_pos - $inicio_pos);
     }
+
+    public static function camelToKebabCase(string $string):string
+    {
+         // Transforma a primeira letra em minúscula
+        $input = lcfirst($string);
+        
+        // Usa uma expressão regular para encontrar letras maiúsculas e as substitui por hífens e letras minúsculas
+        $output = preg_replace('/([a-z])([A-Z])/', '$1-$2', $input);
+        
+        // Converte toda a string para minúsculas
+        $output = strtolower($output);
+        
+        return $output;
+    }
 }

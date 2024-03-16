@@ -34,13 +34,6 @@ trait Boot
         
         self::setConstants();
 
-        date_default_timezone_set("America/Sao_Paulo");
-        
-        if ( ENV == "DEV" ){
-            error_reporting(E_ALL);
-            ini_set('display_errors', '1');
-        }
-        
         self::$status = "on";
 
         Route::start(APP_URL, "@");
@@ -99,28 +92,33 @@ trait Boot
         define("DIR_PUBLIC", DIR_ROOT . "/public");
         define("DIR_ASSETS", DIR_PUBLIC . "/assets");
         define("DIR_STORAGE", DIR_ROOT . "/storage");
+        define("DIR_BUILDS", DIR_STORAGE . "/builds");
+        define("DIR_LOG", DIR_STORAGE . "/log");
+        define("DIR_CACHE", DIR_STORAGE . "/cache");
 
         // Build
-        define("DIR_BUILDS", DIR_STORAGE . "/builds");
+        define("DIR_BUILD_MODULE_APIS", DIR_BUILDS. "/apis");
         define("ROUTE_MAPS_FILENAME", DIR_BUILDS. "/route-maps.php");
         define("ROUTE_MAPS_BUILD_FILENAME_BACK", DIR_BUILDS. "/route-maps.build.php");
         define("ROUTE_MAPS_BUILD_FILENAME_FRONT", DIR_BUILDS. "/route-maps.build.js");
         define("CONFIGS_BUILD_FILENAME_FRONT", DIR_BUILDS. "/configs.build.json");
+        define("VENDOR_ENDPOINTS_MAP_FILENAME", DIR_BUILDS. "/vendor-endpoints.build.php");
+        define("APP_CONSTANTS_FILENAME", DIR_BUILDS. "/constants.build.php");
+        define("APP_HOT_RELOAD_FILENAME", DIR_LOG. "/hot-reload.txt");
 
         // App
         define("DIR_APP", DIR_ROOT . "/src");
         define("DIR_MODULES", DIR_APP . "/Modules");
         define("DIR_COMMON", DIR_APP . "/Common");
-        define("DIR_RESOURCES", DIR_APP . "/Resources");
-        define("DIR_TEMPLATES", DIR_RESOURCES . "/Templates");
-        define("DIR_MIDDLEWARES", DIR_RESOURCES . "/Middlewares");
+        define("DIR_TOOLS", DIR_COMMON . "/Tools");
+        define("DIR_TEMPLATES", DIR_COMMON . "/Templates");
+        define("DIR_MIDDLEWARES", DIR_COMMON . "/Middlewares");
 
         // Namespace
         define("APP_NAMESPACE", "App\\");
         define("APP_MODULES_NAMESPACE", APP_NAMESPACE . "Modules\\");
-        define("APP_TEMPLATES_NAMESPACE", APP_NAMESPACE."Resources\\Templates\\");
+        define("APP_TEMPLATES_NAMESPACE", APP_NAMESPACE."Common\\Templates\\");
 
-       
         self::startEnv();
 
         // Dependentes do Env
@@ -130,6 +128,12 @@ trait Boot
         // Core
         define("CORE_NAMESPACE", "App\\Core\\");
         define("DEFAULT_VIEW_CONTROLLER", CORE_NAMESPACE . "View\\View@handle");
+
+        // Custom
+
+        if ( file_exists(APP_CONSTANTS_FILENAME) ){
+            include_once(APP_CONSTANTS_FILENAME);
+        }
     }
 
     private static function startEnv()

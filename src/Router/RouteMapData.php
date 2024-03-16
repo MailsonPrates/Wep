@@ -46,7 +46,7 @@ class RouteMapData
         if ( !$data ) return (object)[];
 
         $data = (object)$data;
-        $data->view = (object)$data->view;
+        $data->view = (object)($data->view ?: []);
 
         return $data;
     }

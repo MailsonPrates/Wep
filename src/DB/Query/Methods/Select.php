@@ -66,7 +66,6 @@ class Select implements MethodInterface
             ? [join(", ", preg_filter('/^/', "", $fields))]
             : ["*"];
 
-
         // Inicia montagem da query
         $query = ["SELECT ".join(", ", $fields_list). " FROM ".$this->table];
 

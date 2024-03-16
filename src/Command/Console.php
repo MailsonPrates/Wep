@@ -2,6 +2,12 @@
 
 namespace App\Core\Command;
 
+/**
+ * @todo implementar metodos
+ * - error
+ * - success
+ * - warning
+ */
 class Console
 {
     /**

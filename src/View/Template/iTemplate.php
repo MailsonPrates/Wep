@@ -2,7 +2,7 @@
 
 namespace App\Core\View\Template;
 
-interface TemplateInterface
+interface iTemplate
 {
     public function build($route, $request, $template): string;
 }

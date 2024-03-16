@@ -31,6 +31,11 @@ class Handler
     /**
      * @var array
      */
+    private $fields = [];
+
+    /**
+     * @var array
+     */
     private $filters = [];
 
     /**
@@ -88,6 +93,14 @@ class Handler
 
     public function get($props=null)
     {
+        $fields = is_array($props) ? $props : (func_get_args() ?? null);
+        $is_verbose = $this->isAssoc($fields);
+
+        if ( $is_verbose ){
+            $this->setVerbose($props);
+            $fields = $this->fields;
+        }
+
         $selectQuery = new Select([
             "filters" => $this->filters,
             "conditions" => $this->conditions,
@@ -97,8 +110,6 @@ class Handler
 
         $this->resetProps();
 
-        $fields = is_array($props) ? $props : (func_get_args() ?? null);
-
         $query = $selectQuery->build($fields);
 
         return $this->execute($query);
@@ -106,10 +117,20 @@ class Handler
 
     public function insert($fields=[])
     {
+        $is_verbose = !empty($fields['fields']);
+
+        if ( $is_verbose ){
+
+            if ( !empty($fields['onDuplicateUpdate']) ){
+                $this->onDuplicateUpdate($fields['onDuplicateUpdate']);
+            }
+
+            $fields = $fields['fields'];
+        }
+
         if ( empty($fields) ) return Response::error("Invalid params");
 
         $insertQuery = new Insert([
-            "debug" => $this->is_debug,
             "table" => $this->config->table,
             "duplicateUpdate" => $this->duplicateUpdate
         ]);
@@ -123,16 +144,22 @@ class Handler
 
     public function update($key, $value=null)
     {
+        $fields = is_array($key) ? $key : [$key => $value];
+        $is_verbose = $this->isAssoc($fields) && !empty($fields['where']);
+
+        if ( $is_verbose ){
+            $this->setVerbose($key);
+            $fields = $this->fields;
+        }
+
         if ( empty($this->conditions) ) return Response::error("Insecure update, no where clause found");
 
         $updateQuery = new Update([
             "conditions" => $this->conditions,
             "table" => $this->config->table
         ]);
-
+        
         $this->resetProps();
-
-        $fields = is_array($key) ? $key : [$key => $value];
 
         $query = $updateQuery->build($fields);
 
@@ -143,7 +170,10 @@ class Handler
     {
         if ( $key ){
             is_array($key)
-                ? $this->where($key)
+                ? (isset($key['where']) 
+                    ? $this->where($key['where']) 
+                    : $this->where($key)
+                  ) 
                 : $this->where($key, $value);
         }
 
@@ -183,7 +213,7 @@ class Handler
             return $query;
         }
 
-        return Response::success("Query executada!");
+        return Response::success($query);
 
         $pdo = $this->pdo ?? null;
 

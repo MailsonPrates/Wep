@@ -12,6 +12,13 @@ trait Joins
      *  ["order", "order.id", "user.id"],
      *  ["product", "order.product_id", "product.id"]
      * ]);
+     * 
+     * $user->leftJoin([
+     *  "order" => ["order.id", "user.id"],
+     *  "product" => ["order.product_id", "product.id"]
+     * ]);
+     * 
+     * $user->leftJoin("order", "id", "user.id");
      */
     public function leftJoin()
     {
@@ -26,11 +33,16 @@ trait Joins
 
         $joins = [];
 
-        foreach( $join_list as $join ){
+        foreach( $join_list as $key => $join ){
 
-            $table = $join[0] ?? "";
-            $on_source = $join[1] ?? "";
-            $on_target = $join[2] ?? "";
+            // "order" => ["order.id", "user.id"],
+            $is_associative = is_string($key);
+            $src_i = $is_associative ? 0 : 1;
+            $target_i = $is_associative ? 1 : 2;
+
+            $table = $is_associative ? $key : ($join[0] ?? "");
+            $on_source = $join[$src_i] ?? "";
+            $on_target = $join[$target_i] ?? "";
 
             if ( !$table || !$on_source || !$on_target ) continue;
 
@@ -49,21 +61,21 @@ trait Joins
 
                 foreach( $conditions as $on ){
 
-                    $target = $on[0] ?? "";
-                    $source = $on[1] ?? "";
+                    $source = $on[0] ?? "";
+                    $target = $on[1] ?? "";
 
                     if ( !$target || !$source ) continue;
 
                     $join_item["on"][] = [
-                        "source" => $on[0],
-                        "target" => $on[1]
+                        "source" => self::getSourceField($table, $source),
+                        "target" => $target
                     ];
                 }
 
             } else {
 
                 $join_item["on"][] = [
-                    "source" => $on_source,
+                    "source" => self::getSourceField($table, $on_source),
                     "target" => $on_target
                 ];
             }
@@ -74,6 +86,13 @@ trait Joins
         $this->joins = array_merge($this->joins, $joins);
 
         return $this;
+    }
+
+    private static function getSourceField($table, $field)
+    {
+        return str_contains($field, ".")
+            ? $field
+            : $table . '.' . $field; 
     }
 
 }

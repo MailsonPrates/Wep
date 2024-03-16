@@ -7,6 +7,7 @@ $user = DB::table("user", [
     "debug" => true
 ]);
 
+
 $select = [
     [
         "title" => "SELECT: todas as colunas",
@@ -28,6 +29,41 @@ $select = [
         "expect" => $user->get("nome", "idade"),
         "result" => "SELECT nome, idade FROM user"
     ]
+];
+
+$select_where_verbose = [
+    [
+        "title" => "SELECT Verbose",
+        "expect" => $user->get([
+            'fields' => ["nome", "idade"]
+        ]),
+        "result" => "SELECT nome, idade FROM user"
+    ],
+    [
+        "title" => "SELECT Verbose com WHERE: 1 condição",
+        "expect" => $user->get([
+            "where" => ["id", "=", 123]
+        ]),
+        "result" => "SELECT * FROM user WHERE id = 123"
+    ],
+    [
+        "title" => "SELECT Verbose com WHERE: 1 condição (omitida)",
+        "expect" => $user->get([
+            "where" => ["id", 123]
+        ]),
+        "result" => "SELECT * FROM user WHERE id = 123"
+    ],
+    [
+        "title" => "SELECT Verbose com WHERE: várias condição",
+        "expect" => $user->get([
+            "where" => [
+                ["id", "=", 123],
+                ["name", "=", 'Pedro']
+            ]
+        ]),
+        "result" => "SELECT * FROM user WHERE id = 123 AND name = Pedro"
+    ],
+
 ];
 
 $select_where = [
@@ -212,15 +248,82 @@ $select_filters = [
 $select_left_join = [
     [
         "title" => "SELECT com LEFT JOIN: simples",
-        "expect" => $user->leftJoin("orders", "order.user_id", "user.id")->get(),
-        "result" => "SELECT * FROM user LEFT JOIN orders ON order.user_id = user.id"
+        "expect" => $user->leftJoin("orders", "orders.user_id", "user.id")->get(),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.user_id = user.id"
+    ],
+    [
+        "title" => "SELECT com LEFT JOIN: com nome da tabela omitida",
+        "expect" => $user->leftJoin("orders", "user_id", "user.id")->get(),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.user_id = user.id"
     ],
     [
         "title" => "SELECT com LEFT JOIN: múltipla condições ON",
-        "expect" => $user->leftJoin("orders", ["order.user_id", "user.id"],["product.id", "order.product_id"])->get(),
-        "result" => "SELECT * FROM user LEFT JOIN orders ON (order.user_id = user.id AND product.id = order.product_id)"
+        "expect" => $user->leftJoin("orders", ["orders.user_id", "user.id"],["orders.product_id", "product.id"])->get(),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON (orders.user_id = user.id AND orders.product_id = product.id)"
+    ],
+    [
+        "title" => "SELECT com LEFT JOIN: com multiplas tabelas",
+        "expect" => $user->leftJoin([
+            ["orders", "id", "user.order_id"],
+            ["product", "id", "orders.product_id"]
+        ])->get(),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.id = user.order_id LEFT JOIN product ON product.id = orders.product_id"
+    ],
+    [
+        "title" => "SELECT com LEFT JOIN: com multiplas tabelas e usando array associativo",
+        "expect" => $user->leftJoin([
+            "orders" => ["id", "user.order_id"],
+            "product" => ["id", "orders.product_id"]
+        ])->get(),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.id = user.order_id LEFT JOIN product ON product.id = orders.product_id"
     ],
     
+];
+
+$select_left_join_verbose = [
+    [
+        "title" => "SELECT VERBOSE com LEFT JOIN: simples ",
+        "expect" => $user->get([
+            "leftJoin" => ["orders", "orders.user_id", "user.id"]
+        ]),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.user_id = user.id"
+    ],
+    [
+        "title" => "SELECT VERBOSE com LEFT JOIN: com nome da tabela omitida",
+        "expect" => $user->get([
+            "leftJoin" => ["orders", "user_id", "user.id"]
+        ]),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.user_id = user.id"
+    ],
+    [
+        "title" => "SELECT VERBOSE com LEFT JOIN: múltipla condições ON",
+        "expect" => $user->get([
+            "leftJoin" => [
+                ["orders", ["orders.user_id", "user.id"],["orders.product_id", "product.id"]]
+            ]
+        ]),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON (orders.user_id = user.id AND orders.product_id = product.id)"
+    ],
+    [
+        "title" => "SELECT VERBOSE com LEFT JOIN: com multiplas tabelas",
+        "expect" => $user->get([
+            'leftJoin' => [
+                ["orders", "id", "user.order_id"],
+                ["product", "id", "orders.product_id"]
+            ]
+        ]),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.id = user.order_id LEFT JOIN product ON product.id = orders.product_id"
+    ],
+    [
+        "title" => "SELECT VERBOSE com LEFT JOIN: com multiplas tabelas e usando array associativo",
+        "expect" => $user->get([
+            'leftJoin' => [
+                "orders" => ["id", "user.order_id"],
+                "product" => ["id", "orders.product_id"]
+            ]
+        ]),
+        "result" => "SELECT * FROM user LEFT JOIN orders ON orders.id = user.order_id LEFT JOIN product ON product.id = orders.product_id"
+    ]
 ];
 
 $inserts = [
@@ -229,7 +332,7 @@ $inserts = [
         "expect" => $user->insert(["name" => "Mailson", "sobrenome" => "Lima"]),
         "result" => "INSERT INTO user (name, sobrenome) VALUES (Mailson, Lima)"
     ],
-    [
+    [   
         "title" => "INSERT: aliase CREATE",
         "expect" => $user->create(["name" => "Mailson", "sobrenome" => "Lima"]),
         "result" => "INSERT INTO user (name, sobrenome) VALUES (Mailson, Lima)"
@@ -303,11 +406,12 @@ $deletes = [
 
 ];
 
+
 DB::setConfig([
     "debug" => true
 ]);
 
-$db_methods = [
+$db_methods = [ 
     [
         "title" => "DB::query: SELECT",
         "expect" => (object)[
@@ -356,15 +460,18 @@ $db_methods = [
 $cases = array_merge(
     $select,
     $select_where,
+    $select_where_verbose,
     $selec_where_operadores_logico,
     $select_where_operadores_valor,
     $select_where_operadores_type,
     $select_filters,
     $select_left_join,
+    $select_left_join_verbose,
     $inserts,
     $updates,
     $deletes,
-    $db_methods
+    $db_methods,
+    
 );
 
 foreach( $cases as $item ){

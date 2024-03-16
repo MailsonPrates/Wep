@@ -3,7 +3,11 @@
 namespace App\Core\Engine\Builder;
 
 use App\Core\Core;
+use App\Core\Engine\Builder\Warning;
 use App\Core\Obj;
+use App\Core\Str;
+use App\Core\Engine\Builder\Vendor\Vendor;
+use App\Core\Engine\Module;
 
 class RoutesMap
 {
@@ -32,68 +36,104 @@ class RoutesMap
         return self::buildFileContents($build_maps);
     }
 
-    private static function buildMap($route)
+    public static function getModulesRoutes()
     {
-        $response = [];
+        $routes_list = [];
+        $default_apis = ['get', 'create', 'update', 'delete'];
 
-        $prefix_path = $route->path ?? "/";
-        $groups = $route->groups ?? [];
-        $namespace = $route->namespace;
-        $namespace_parts = explode("\\", $namespace);
-        $module_name = end($namespace_parts);
+        /**
+         * @todo usar Module::getConfigs()
+         */
+        $modules_config_filenames = glob(DIR_MODULES . "/*/config/module.php");
 
-        $parent_view = $route->view ?? Obj::set();
-        $parent_view_placeholder = self::getViewPlaceholder($parent_view);
-
-        foreach( $groups as $item ){
-
-            $item = Obj::set($item);
+        foreach($modules_config_filenames as $filename){
             
-            $path = $prefix_path . ($item->path ?? "");
-            $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
+            $parts = explode("Modules/", $filename);
+            $item = $parts[1] ?? "";
+            $module_name = explode("/", $item)[0] ?? "";
+            $module_namespace = APP_MODULES_NAMESPACE . $module_name;
 
-            $type = self::getType($item);
+            $module_config = include_once($filename) ?? [];
+
+            $active = $module_config['active'] ?? true;
             
-            $view = self::getView($item, $module_name);
+            if ( $active === false ) continue;
 
-            /**
-             * @todo implementar middlewares global, rota ou grupo
-             */
+            $module_routes = $module_config['routes'] ?? [];
+            $module_routes['namespace'] = $module_routes['namespace'] ?? $module_namespace;
+            $module_routes['module_name'] = $module_name;
+            $module_routes['groups'] = $module_routes['groups'] ?? [];
 
-            /**
-             * @todo implementar o uso de template diferente para a rota ou grupo de rotas
-             * 
-             * module config:
-             * view => ["template" => 'Main']
-             */
-
-            $api = $item->api ?? false;
-
-            $controller = self::getController($item, $namespace, $module_name);
-
-            $custom = $item->custom ?? [];
-
-            // SETS
-            if ( !isset($response[$path]) ){
-                $response[$path] = [];
-            }
-
-            $response[$path][$type] = [
-                'path' => $path,
-                'type' => $type,
-                'api' => $api,
-                'custom' => $custom,
-                'namespace' => $namespace,
-                'view' => $view->main,
-                'view_placeholder' => isset($view->placeholder) && $view->placeholder 
-                    ? $view->placeholder
-                    : $parent_view_placeholder,
-                'controller' => $controller
-           ];
+            $routes_list[] = $module_routes;
         }
 
-        return $response;
-    }
+        // Pega Vendors
+        $vendor_routes_list = Vendor::buildRoutes();
+
+        $routes_list = array_merge($routes_list, $vendor_routes_list);
+
+        // Separa rotas agrupadas na prop api
+        // "api" => ["update", "delete"]
+        $routes_splited = []; 
+
+        foreach( $routes_list as $routes ){
+
+            $groups = $routes['groups'];
+            $new_routes = $routes;
+            $new_routes['groups'] = [];
+
+            foreach( $groups as $item ){
+
+                $active = $item['active'] ?? true;
+
+                if ( $active === false ) continue;
+
+                $api = $item['method'] ?? null;
+                $is_api_shortcut = $api && is_array($api);
+
+                if ( $is_api_shortcut ){
+                    
+                    $new_item = $item;
+                    $new_item['view'] = false;
+
+                    foreach( $api as $method ){
+                        $new_item['method'] = $method;
+                        $new_routes['groups'][] = $new_item;
+                    }
+
+                    unset($item['method']);
+                    $new_routes['groups'][] = $item;
+
+                } else {
+                    $new_routes['groups'][] = $item;
+                }
+            }
+
+            $module_apis = $routes['methods'] ?? false;
+
+            if ( $module_apis ){
+
+                $module_apis = is_array($module_apis)
+                    ? $module_apis
+                    : $default_apis;
+
+                foreach( $module_apis as $apiMethod ){
+                    $api_method_lower = strtolower($apiMethod);
+                    $is_default_api = in_array($api_method_lower, $default_apis);
+                    $sub_path = $is_default_api ? ('/' . $api_method_lower) : '';
+
+                    $new_routes['groups'][] = [
+                        'path' => $sub_path,
+                        'method' => $apiMethod
+                    ];
+                }
+            }
+
+            $routes_splited[] = $new_routes;
+        }
+
+        return $routes_splited;
+    }    
 
     private static function handleBuildMaps($routes)
     {
@@ -101,12 +141,23 @@ class RoutesMap
             'raw' => [],
             'backend' => [],
             'frontend' => [],
-            'frontend_imports' => []
+            'frontend_imports' => [],
+            'module_apis' => []
         ];
+
+        $route_build_items_by_module = [];
 
         foreach( $routes as $route ){
 
             $route_build = self::buildMap($route);
+            $route_module_name = $route['module_name'];
+
+            if ( !isset($route_build_items_by_module[$route_module_name]) ){
+                $route_build_items_by_module[$route_module_name] = [];
+            }
+
+            $route_build_items_by_module[$route_module_name][] = $route_build;
+
             $route_backend_map = self::buildBackendMap($route_build);
             $route_frontend_map = self::buildFrontendMap($route_build);
 
@@ -116,22 +167,29 @@ class RoutesMap
             $response['frontend_imports'] = array_merge($response['frontend_imports'], $route_frontend_map->imports);
         }
 
-        $error = Core::config("error") ?? [];
-        $not_found = "/erro/pagina-nao-encontrada";
-
-        if ( !empty($error) ){
-            $not_found = $error["404"] ?? $not_found;
+        if ( !empty($route_build_items_by_module)){
+            $response['module_apis'] = self::buildModuleApis($route_build_items_by_module);
         }
 
-        $response['backend'][] = 'Route::fallback(fn() => header("Location: '.$not_found.'"));';
+        /**
+         * Fallback
+         */
+        $fallback_class = 'App\Core\View\View';
+        $fallback_method = 'handle';
+        $fallback = Core::config("fallback") ?? '';
+
+        if ( !empty($fallback) && is_string($fallback) ){
+            [$fallback_class, $fallback_method] = explode('@', $fallback);
+        }
+
+        $response['backend'][] = 'Route::fallback(fn($req) => (new \\'.$fallback_class.' )->'.$fallback_method.'($req));';
 
         return Obj::set($response);
     }
 
     private static function buildFileContents($buildMaps)
     {
-
-        $alert = self::getAlert();
+        $alert = self::getEditWarning();
 
         // FRONT
         $imports = array_unique($buildMaps->frontend_imports);
@@ -149,6 +207,7 @@ class RoutesMap
         $back = ['<?php'];
         $back[] = "use App\Core\Router\Route;";
         $back[] = $alert;
+        $back[] = self::getMiddlewaresSets();
         $back[] = join("\r", $buildMaps->backend);
         $back = join("\r", $back);
 
@@ -162,8 +221,85 @@ class RoutesMap
         return Obj::set([
             'raw' => $raw,
             'frontend' => $front,
-            'backend' => $back
+            'backend' => $back,
+            'module_apis' => $buildMaps->module_apis
         ]);
+    }
+
+    private static function buildMap($route)
+    {
+        $route = Obj::set($route);
+
+        $response = [];
+
+        $prefix_path = $route->path ?? "/";
+        $groups = $route->groups ?? [];
+        $namespace = $route->namespace;
+        $namespace_parts = explode("\\", $namespace);
+        $module_name = end($namespace_parts);
+        $is_vendor_module = in_array("Vendor", $namespace_parts);
+        $route_middlewares = $route->use_middlewares ?? [];
+
+        $parent_view = $route->view ?? Obj::set();
+        $parent_view_placeholder = self::getViewPlaceholder($parent_view);
+
+        foreach( $groups as $item ){
+
+            $item = Obj::set($item);
+
+            $api = $item->method ?? false;
+            
+            $vendor_path = $is_vendor_module ? '/vendor' : '';
+            $api_path = $api ? '/api' : '';
+            $path = $vendor_path. $prefix_path .  $api_path . ($item->path ?? "");
+            $path = str_replace('//', '/', $path);
+            $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
+
+            $type = self::getType($item);
+            
+            $view = self::getView($item, $module_name);
+
+            /**
+             * @todo implementar o uso de template diferente para a rota ou grupo de rotas
+             * 
+             * module config:
+             * view => ["template" => 'Main']
+             */
+
+            $controller = self::getController($item, $namespace, $module_name);
+
+            $custom = $item->custom ?? [];
+
+            // Middlewares
+            $item_middlewares = $item->use_middlewares ?? [];
+            $middlewares = self::getMiddlewares($item_middlewares, $route_middlewares);
+
+            // SETS
+            if ( !isset($response[$path]) ){
+                $response[$path] = [];
+            }
+
+            $response_item = [
+                'module' => $module_name,
+                'path' => $path,
+                'type' => $type,
+                'method' => $api,
+                'custom' => $custom,
+                'resource' => $item->resource ?? null,
+                'namespace' => $namespace,
+                'middlewares' => $middlewares,
+                'view' => $view->main,
+                'vendor' => $is_vendor_module,
+                'view_placeholder' => isset($view->placeholder) && $view->placeholder 
+                    ? $view->placeholder
+                    : $parent_view_placeholder,
+                'controller' => $controller
+            ];
+
+            $response[$path][$type] = $response_item;
+        }
+
+        return $response;
     }
 
     private static function buildBackendMap($map)
@@ -177,9 +313,75 @@ class RoutesMap
                 $method = strtolower($route->type);
                 $path = $route->path;
                 $controller = $route->controller;
+                $middlewares = $route->middlewares ?? [];
     
-                $result[] = "Route::$method('$path', '$controller');";
+                $define = "Route::$method('$path', '$controller')";
+
+                if ( !empty($middlewares) ){
+                    $use = array_map(fn($a) => "'$a'", $middlewares);
+                    $define .= '->middleware(['.join(',', $use).'])';
+                }
+
+                $define .= ';';
+
+                $result[] = $define;
             }
+        }
+
+        return $result;
+    }    
+
+    private static function buildModuleApis($routesByModules=[])
+    {
+        $alert = self::getEditWarning();
+
+        $result = [];
+
+        foreach( $routesByModules as $moduleName => $items ){
+
+            $module_name = $moduleName;
+            $module_routes = [];
+
+            foreach( $items as $methods ){
+                
+                foreach( $methods as $item ){
+
+                    foreach( $item as $route ){
+
+                        $route = Obj::set($route);
+
+                        $method = $route->method ?? null;
+    
+                        if ( !$method ) continue;
+    
+                        $type = strtolower($route->type);
+                        $path = $route->path;
+                        $resource = $route->resource ?? null;
+    
+                        $module_routes[] = [
+                            'type' => $type,
+                            'method' => $method,
+                            'path' => $path,
+                            'resource' => $resource
+                        ];
+                    }
+                }
+            }
+
+            $module_routes = json_encode($module_routes);
+            $module_method = $module_name . "Api";
+
+            $module_filename = Str::camelToKebabCase($module_name) . '.js';
+
+            $result[$module_name] = [
+                'content' => join("\r", [
+                    $alert,
+                    'import {apiFactory} from "core";',
+                    'const '.$module_method." = apiFactory({routes:$module_routes});",
+                    'export default '.$module_method . ';'
+                ]),
+                'filename' => $module_filename
+            ];
         }
 
         return $result;
@@ -226,12 +428,14 @@ class RoutesMap
 
         /**
          * "type" => "post",
-         * "api" => "sync"
+         * "method" => "sync"
          */
-        if ( isset($route->api) ){
+        if ( isset($route->method) ){
+
             return $raw_type 
                 ? self::$type_aliases[strtolower($raw_type)] 
-                : self::$type_aliases[strtolower($route->api)];
+                //: self::$type_aliases[strtolower($route->api ?? 'post')];
+                : 'POST';
         }
 
         return $raw_type 
@@ -239,12 +443,34 @@ class RoutesMap
             : "GET";
     }
 
+    private static function getMiddlewares($route, $global)
+    {
+        $middlewares = $global;
+
+        foreach($route as $key){
+
+            $is_remove = $key[0] == '-';
+            
+            if ( $is_remove ){
+
+                $key_to_remove = ltrim($key, '-'); 
+                $index_to_remove = array_search($key_to_remove, $middlewares);
+                unset($middlewares[$index_to_remove]);
+                continue;
+            }
+
+            $middlewares[] = $key;
+        }
+
+        return $middlewares;
+    }
+
     private static function getController($route, $namespace, $moduleName)
     {
         if ( isset($route->controller) ) return $route->controller;
 
-        if ( isset($route->api) ){
-            $default_api_controller = "$namespace\\$moduleName" . "Api@handle";
+        if ( isset($route->method) ){
+            $default_api_controller = "$namespace\\$moduleName" . "Api@moduleApiControllerHandle";
             return $default_api_controller;
         }
 
@@ -257,7 +483,7 @@ class RoutesMap
             'main' => false
         ]);
 
-        if ( isset($route->api) ) return $response;
+        if ( isset($route->method) ) return $response;
 
         $view = $route->view ?? null;
         $modules_path = '/src/' . explode("/src/", DIR_MODULES)[1];
@@ -341,78 +567,65 @@ class RoutesMap
         ]);
     }
 
-    public static function getModulesRoutes()
+    private static function getMiddlewaresSets()
     {
-        $routes_list = [];
+        $modules_configs = Module::getConfigs(':middlewares|namespace');
+        $module_middlewares = [];
 
-        /** @todo use File */
-        $modules_config_filenames = glob(DIR_MODULES . "/*/config/module.php");
+        foreach( $modules_configs as $module ){
 
-        foreach($modules_config_filenames as $filename){
-            
-            $parts = explode("Modules/", $filename);
-            $item = $parts[1] ?? "";
-            $module_name = explode("/", $item)[0] ?? "";
-            $module_namespace = APP_MODULES_NAMESPACE . $module_name;
+            $active = $module['active'] ?? true;
 
-            $module_config = include_once($filename) ?? [];
-            $module_config = Obj::set($module_config);
+            if ( $active === false ) return;
 
-            $module_routes = Obj::set($module_config->routes ?? []);
-            $module_routes->namespace = $module_routes->namespace ?? $module_namespace;
+            $middlewares_items = $module['middlewares'] ?? [];
+            $module_namespace = $module['namespace'] ?? '';
 
-            $routes_list[] = $module_routes;
+            if ( empty($middlewares_items) ) continue;
+
+            foreach( $middlewares_items as $key => $class ){
+
+                $has_namespace = str_contains($class, 'App\\');
+
+                $module_middlewares[$key] = $has_namespace
+                    ? $class
+                    : $module_namespace . '\\Middlewares\\'.$class;
+            }
         }
 
-        // Separa rotas agrupadas na prop api
-        // "api" => ["update", "delete"]
-        $routes_splited = []; 
+        $app_middlewares = Core::config('middlewares') ?? [];
 
-        foreach( $routes_list as $routes ){
+        $middlewares_items = array_merge($module_middlewares, $app_middlewares);
 
-            $groups = $routes->groups;
-            $new_routes = $routes;
-            $new_routes->groups = [];
+        $middlewares = [];
+        $classes_flag = [];
 
-            foreach( $groups as $item ){
+        foreach( $middlewares_items as $key => $class ){
 
-                $api = $item['api'] ?? null;
-                $is_api_shortcut = $api && is_array($api);
+            // Add method
+            if ( !str_contains($class, '::') ){
+                $class .= '::class';
+            }   
 
-                if ( $is_api_shortcut ){
-                    
-                    $new_item = $item;
-                    $new_item['view'] = false;
-
-                    foreach( $api as $method ){
-                        $new_item['api'] = $method;
-                        $new_routes->groups[] = $new_item;
-                    }
-
-                    unset($item['api']);
-                    $new_routes->groups[] = $item;
-
-                } else {
-                    $new_routes->groups[] = $item;
-                }
+            // Add '/' inicial
+            if ( $class[0] != '\\' ){
+                $class = '\\'.$class;
             }
 
-            $routes_splited[] = $new_routes;
+            $classes_flag[] = $class;
+            $middlewares[] = "'$key' => $class";
         }
 
-        return $routes_splited;
+        $content = ['Route::globalMiddlewares(['];
+        $content[] = join(",\r", $middlewares);
+        $content[] = ']);';
+        $content[] = ' ';
+
+        return join("\r", $content);
     }
 
-    private static function getAlert()
+    private static function getEditWarning()
     {
-        return  '
-/**
- * -------------------- CUIDADO -----------------------
- *   Arquivo gerado automaticamente. NÃO o modifique 
- *   ou o funcionamento da aplicação será comprometido
- *   Build: '.date("d/m/Y h:i:s").'
- * ----------------------------------------------------
- */    
-        ';
+       return Warning::get();
     }
 }

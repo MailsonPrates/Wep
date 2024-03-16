@@ -3,8 +3,11 @@
 namespace App\Core\Engine;
 
 use App\Core\Core;
+use App\Core\Engine\Builder\Warning;
 use App\Core\Engine\Builder\RoutesMap;
+use App\Core\Engine\Builder\Vendor\Vendor;
 use App\Core\Obj;
+use App\Core\Str;
 
 /**
  * Classe responsável por atualizar recursos do App
@@ -25,6 +28,14 @@ class Update
         $configs_update = self::configs();
 
         if ( $configs_update->error ) return $configs_update;
+
+        $endpoints_update = self::endpoints();
+
+        if ( $endpoints_update->error ) return $endpoints_update;
+
+        $custom_sets_update = self::customSets();
+
+        if ( $custom_sets_update->error ) return $custom_sets_update;
         
         return $response;
     }
@@ -54,6 +65,15 @@ class Update
             }
         }
 
+        if ( !empty($routes_build->module_apis) ){
+            $update_module_apis = self::moduleApis($routes_build->module_apis);
+
+            if ( $update_module_apis->error ){
+                $response->data[] = $update_module_apis->data ?? [];
+            }
+
+        }
+
         $has_error = !empty($response->data);
 
         if ( $has_error ){
@@ -64,11 +84,51 @@ class Update
         return $response;
     }
 
+    /**
+     * Atualiza os arquivos de api dos módulos
+     * localizados em storage/builds/apis/
+     */
+    private static function moduleApis($moduleApis=[])
+    {
+        $response = Obj::set([
+            "error" => false
+        ]);
+
+
+        $module_api_file_to_delete = glob(DIR_BUILD_MODULE_APIS."/*");  
+   
+        foreach($module_api_file_to_delete as $file) { 
+            if ( is_file($file ) ) unlink($file);  
+        }
+
+        $module_apis_to_create = $moduleApis ?? [];
+
+        foreach( $module_apis_to_create as $module ){
+
+            $filename = DIR_BUILD_MODULE_APIS . '/' . $module['filename'];
+            $content = $module['content'] ?? '';
+
+            $create_module_api_file = file_put_contents($filename, $content);
+            
+            if ( !$create_module_api_file ){
+                $response->error = true;
+                $response->data = 'Erro ao criar o arquivo '.$filename;
+                break;
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Atualiza o arquivo de configuração do app
+     * localizados em storage/builds/configs.build.json
+     */
     private static function configs()
     {
         $response = Obj::set([
             'error' => false,
-            'message' => 'Rotas atualizadas',
+            'message' => 'Configs atualizadas',
             'data' => []
         ]);
         
@@ -90,9 +150,131 @@ class Update
         $save = file_put_contents(CONFIGS_BUILD_FILENAME_FRONT, $configs_json);
 
         if ( !$configs_json || !$save  ){
+            $response->error = true;
             $response->data[] = "Erro ao atualizar o arquivo de configs";
         }
 
         return $response;
+    }
+
+    /**
+     * Atualiza o arquivo de configuração do app
+     * localizados em storage/builds/vendor-endpoints.build.php
+     */    
+    private static function endpoints()
+    {
+        $response = Obj::set([
+            'error' => false,
+            'message' => 'Endpoints dos módulos vendor atualizados',
+            'data' => []
+        ]);
+
+        // VENDOR_ENDPOINTS_MAP
+        $endpoint_maps = Vendor::buildEndpointsMap();
+
+        $content = ['<?php'];
+        $content[] = Warning::get();
+        $content[] = "return";
+        $content[] = var_export($endpoint_maps, true) . ";";
+        $content = join("\r", $content);
+
+        $save = file_put_contents(VENDOR_ENDPOINTS_MAP_FILENAME, $content);
+
+        if ( !$save ){
+            $response->error = true;
+            $response->data[] = "Erro ao atualizar o arquivo de endpoint dos módulos vendor";
+        }
+
+        return $response;
+    }
+
+    /**
+     * Atualiza o arquivo de configuração customizadas do app e módulo
+     * localizados em storage/builds/constants.build.php
+     */   
+    private static function customSets()
+    {
+        $response = Obj::set([
+            'error' => false,
+            'message' => 'Arquivo de constantes criado',
+            'data' => []
+        ]);
+
+        /**
+         * Constants
+         */
+        $app_constants = Core::config('constants') ?? [];
+        $modules_config = Module::getConfigs();
+        $module_constants = [];
+
+        foreach( $modules_config as $config ){
+            $consts = $config['constants'] ?? [];
+            $module_constants = array_merge($module_constants, $consts);
+        }
+
+        $constants_to_define = array_merge($app_constants, $module_constants);
+
+        if ( file_exists(APP_CONSTANTS_FILENAME) ) unlink(APP_CONSTANTS_FILENAME);
+
+        if ( empty($constants_to_define) ) return $response;
+
+        $constants = [];
+
+        foreach( $constants_to_define as $key => $value ){
+            $key = strtoupper($key);
+
+            if ( is_string($value) ){
+                $value = self::parseConstant($value);
+            }
+
+            if (  is_array($value) || is_object($value)){
+                $value = var_export($value, true);
+            }
+
+            $constants[] = "define('$key', $value);";
+        }
+
+        $content = [
+            '<?php',
+            Warning::get(),
+            join("\r", $constants)
+        ];
+
+        $save = file_put_contents(APP_CONSTANTS_FILENAME, $content);
+
+        return $response;
+    }
+
+    private static function parseConstant($text)
+    {
+        $has_placeholder = str_contains($text, '{');
+
+        if ( !$has_placeholder ) return "'$text'";
+
+        $text_trim = str_replace(['{ ', ' }'], ['{', '}'], $text);
+        $parts = explode(' ', $text_trim);
+
+        $words_parsed = [];
+
+        foreach( $parts as $word ){
+            $is_placeholder = str_contains($word, '{');
+            $parsed = $word;
+
+            if ( $is_placeholder ){
+                $key = Str::between($word, '{', '}');
+                $placeholder = '{'.$key.'}';
+                $key = strtoupper($key);
+
+                // '{MY_CUSTOM_VAR_A}/bbbbb'
+                //  MY_CUSTOM_VAR_A . '/bbbbb'
+                $value = "$key .'";
+
+                $parsed = str_replace($placeholder, $value, $word) . "'";
+            }
+                
+            $words_parsed[] = $parsed;
+        }
+
+        return join(' ', $words_parsed);
     }
 }
