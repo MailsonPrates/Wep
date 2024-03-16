@@ -122,7 +122,7 @@ class Module
             "    'constants' => [],",
             "    'routes' => [",
             "        'path' => '',",
-            "        'api' => ['get', 'create', 'update', 'delete'],",
+            "        'methods' => ['get', 'create', 'update', 'delete'],",
             "        'groups' => [",
             "            [",
             "                'path' => '/',",
