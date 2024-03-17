@@ -40,7 +40,7 @@ class Endpoint
 
                 $routes[] = [
                     'path' => "/$resource/$method",
-                    'api' => $method,
+                    'method' => $method,
                     'resource' => $resource
                 ];
             }

@@ -2,6 +2,14 @@
 
 namespace App\Core\File;
 
+/**
+ * @todo
+ * - File::read();
+ * - File::rename();
+ * - File::delete();
+ * - File::save();
+ */
+
 trait Helpers
 {
     public static function put(string $filename, mixed $content, int $flags = 0)

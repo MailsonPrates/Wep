@@ -21,7 +21,7 @@ class Module
             'config/module.php' => 'vendorConfig',
             '{module_name}.php' => 'vendorModel',
             '{module_name}Api.php' => 'vendorApi',
-            'Services/' => 'services'
+            'Services/' => 'dir'
         ]
     ];
 
