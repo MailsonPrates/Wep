@@ -260,13 +260,6 @@ class RoutesMap
             
             $view = self::getView($item, $module_name, $namespace);
 
-            /**
-             * @todo implementar o uso de template diferente para a rota ou grupo de rotas
-             * 
-             * module config:
-             * view => ["template" => 'Main']
-             */
-
             $controller = self::getController($item, $namespace, $module_name);
 
             $custom = $item->custom ?? [];
