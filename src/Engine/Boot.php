@@ -123,6 +123,7 @@ trait Boot
 
         // Dependentes do Env
         define("ENV", getenv("ENV"));
+        define('ENV_DEV', (ENV == 'DEV'));
         define("APP_URL", getenv("APP_URL"));
 
         // Core
