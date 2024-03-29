@@ -242,6 +242,7 @@ class RoutesMap
 
         $parent_view = $route->view ?? Obj::set();
         $parent_view_placeholder = self::getViewPlaceholder($parent_view);
+        $parent_view_template = self::getViewTemplate(($route->view['template'] ?? null), $namespace);
 
         foreach( $groups as $item ){
 
@@ -257,7 +258,7 @@ class RoutesMap
 
             $type = self::getType($item);
             
-            $view = self::getView($item, $module_name);
+            $view = self::getView($item, $module_name, $namespace);
 
             /**
              * @todo implementar o uso de template diferente para a rota ou grupo de rotas
@@ -289,6 +290,7 @@ class RoutesMap
                 'namespace' => $namespace,
                 'middlewares' => $middlewares,
                 'view' => $view->main,
+                'view_template' => $api ? false : ($view->template ?? $parent_view_template),
                 'vendor' => $is_vendor_module,
                 'view_placeholder' => isset($view->placeholder) && $view->placeholder 
                     ? $view->placeholder
@@ -329,7 +331,7 @@ class RoutesMap
         }
 
         return $result;
-    }    
+    }
 
     private static function buildModuleApis($routesByModules=[])
     {
@@ -415,7 +417,9 @@ class RoutesMap
                     $result->imports[] = "import $view_placeholder_name from '$view_placeholder_path';";
                 }
 
-                $result->items[] = "{path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."}}}";
+                $is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
+
+                $result->items[] = "{path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
             }
         }
 
@@ -477,7 +481,7 @@ class RoutesMap
         return DEFAULT_VIEW_CONTROLLER;
     }
 
-    private static function getView($route, $module_name)
+    private static function getView($route, $module_name, $module_namespace)
     {
         $response = Obj::set([
             'main' => false
@@ -506,6 +510,10 @@ class RoutesMap
             
             $response->main = $filename;
             $response->placeholder = self::getViewPlaceholder($view);
+
+            if ( isset($view->template) ){
+                $response->template = self::getViewTemplate($view->template, $module_namespace);
+            }
         }
         
         return $response;
@@ -565,6 +573,20 @@ class RoutesMap
             'path' => $real_path,
             'name' => $method_name
         ]);
+    }
+
+    private static function getViewTemplate($viewTemplate, $namespace)
+    {
+        $template = APP_TEMPLATES_NAMESPACE . 'Main';
+
+        if ( !$viewTemplate ) return $template;
+
+        $view_has_namespace = str_contains($viewTemplate, 'App\\');
+
+        if ( $view_has_namespace ) return $viewTemplate;
+
+        // Pega template da pasta Templates do módulo
+        return $namespace . '\\Templates\\' . $viewTemplate;
     }
 
     private static function getMiddlewaresSets()
