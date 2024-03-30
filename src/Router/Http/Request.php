@@ -433,13 +433,11 @@ class Request
         if ( !$this->routeMapData ){
             $route_method = strtolower($this->httpMethod);
             $route_data = RouteMap::get($this->originalRoute);
-
            
             $route_map_data = method_exists($route_data, $route_method)
                 ? $route_data->{$route_method}() 
                 : $route_data->{'post'}();
 
-                
             $this->routeMapData = $route_map_data;
         }
 
