@@ -258,6 +258,7 @@ class RoutesMap
 
             $type = self::getType($item);
             
+            $title = $item->title ?? '';
             $view = self::getView($item, $module_name, $namespace);
 
             $controller = self::getController($item, $namespace, $module_name);
@@ -276,6 +277,7 @@ class RoutesMap
             $response_item = [
                 'module' => $module_name,
                 'path' => $path,
+                'title' => $title,
                 'type' => $type,
                 'method' => $api,
                 'custom' => $custom,
@@ -411,8 +413,9 @@ class RoutesMap
                 }
 
                 $is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
+                $title = $route->title;
 
-                $result->items[] = "{path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
+                $result->items[] = "{title:'$title',path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
             }
         }
 
