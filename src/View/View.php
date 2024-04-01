@@ -25,9 +25,9 @@ class View
         //echo json_encode($request->all());
         //exit();
 
-        $title = $route->title ?? '';
+        $title = $this->paramTitle($route->title ?? '', $request);
 
-        $route->title = $this->paramTitle($title, $request);
+        $route->title = $title;
         $route->document_title = ($title
             ? $title . ' | '
             : '') . Core::config('name|title') ?? 'App';
