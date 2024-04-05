@@ -455,6 +455,7 @@ class Request
     {
         $data = array_merge(
             ($this->data ?? []), 
+            ($this->params ?? []), 
             $this->get, 
             $this->routeMapData('custom', [])
         );

@@ -19,13 +19,7 @@ class View
     {
         $route = $request->routeMapData();
 
-        /**
-         * @todo pq nao tá funcionado?
-         */
-        //echo json_encode($request->all());
-        //exit();
-
-        $title = $this->paramTitle($route->title ?? '', $request);
+        $title = $this->paramTitle($route->title ?? '', $request->data());
 
         $route->title = $title;
         $route->document_title = ($title
@@ -38,7 +32,17 @@ class View
         echo $template->build();
     }
 
-    private function paramTitle($title, $request)
+    /**
+     * Método responsável por adicionar 
+     * parametros ao título do documento da rota
+     * Pedido #{id} vira Pedido #123
+     * 
+     * @param string $title
+     * @param array $params
+     * 
+     * @return string
+     */
+    private function paramTitle($title, $params=[])
     {
         $title_has_params = str_contains($title, '{');
 
@@ -52,7 +56,7 @@ class View
 
             if ( !$key ) continue;
 
-            $value = $request->{$key} ?? '';
+            $value = $params[$key] ?? '';
 
             $title = str_replace('{' . $key . '}', $value, $title);
         }
