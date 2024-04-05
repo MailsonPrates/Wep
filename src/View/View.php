@@ -24,7 +24,7 @@ class View
         $route->title = $title;
         $route->document_title = ($title
             ? $title . ' | '
-            : '') . Core::config('name|title') ?? 'App';
+            : '') . Core::config('name|title', 'App');
 
         $template_classname = $route->view_template ?? APP_TEMPLATES_NAMESPACE . 'Main';
         $template = new Template($template_classname, $route, $request);
