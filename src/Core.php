@@ -122,6 +122,14 @@ class Core
         }
     }
 
+    /**
+     * @param string $path
+     * @param string|bool $cacheBooster
+     * 
+     * App::assets('path/to/file.jpg');
+     * App::assets('path/to/file.jpg', true);
+     * App::assets('path/to/file.jpg', 123);
+     */
     public static function assets($path="", $cacheBooster=null)
     {
         $assets_url = explode("/public", DIR_ASSETS)[1];
@@ -129,8 +137,8 @@ class Core
         if ( $path ){
             $assets_url .= ($path[0] == "/" ? $path : "/" . $path);
 
-            if ( $cacheBooster === true ){
-                $assets_url .= '?v='.time();
+            if ( $cacheBooster !== null ){
+                $assets_url .= '?v=' . ($cacheBooster === true ? time() : $cacheBooster);
             }
         }
 
