@@ -142,6 +142,7 @@ class Core
      * 
      * @example
      * 
+     * App::data();
      * App::data('key');
      * App::data('key|default_key');
      * App::data('key', 'default value');
