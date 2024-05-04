@@ -152,7 +152,7 @@ class Core
 
         if ( empty($data) ) return null;
 
-        if ( !$key ) return Obj::set($data);;
+        if ( !$key ) return Obj::set($data);
 
         $has_key_default = str_contains($key, '|');
 
