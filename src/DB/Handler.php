@@ -213,7 +213,7 @@ class Handler
             return $query;
         }
 
-        return Response::success($query);
+        //return Response::success($query);
 
         $pdo = $this->pdo ?? null;
 
