@@ -63,7 +63,7 @@ trait Boot
          * Debug only
          * @todo criar recurso para debug visual
          */
-        //return Response::json([]);
+        //return Response::json(gettype(self::data()));
 
         Route::execute();
     }
@@ -123,6 +123,7 @@ trait Boot
 
         // Dependentes do Env
         define("ENV", getenv("ENV"));
+        define('ENV_DEV', (ENV == 'DEV'));
         define("APP_URL", getenv("APP_URL"));
 
         // Core

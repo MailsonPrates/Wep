@@ -43,7 +43,7 @@ class Str
 
     public static function camelToKebabCase(string $string):string
     {
-         // Transforma a primeira letra em minúscula
+        // Transforma a primeira letra em minúscula
         $input = lcfirst($string);
         
         // Usa uma expressão regular para encontrar letras maiúsculas e as substitui por hífens e letras minúsculas

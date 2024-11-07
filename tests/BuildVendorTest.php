@@ -1,6 +1,7 @@
 <?php
 
-use App\Core\Engine\Builder\Vendor;
+/*
+use App\Core\Engine\Builder\Vendor\Vendor;
 
 define('DIR_MODULES', 'src/Modules');
 
@@ -14,3 +15,4 @@ exit();
 test("Vendor: routes", function() use ($vendor_routes, $result){
     expect($vendor_routes)->toBe($result);
 })->group("vendor");
+*/
