@@ -114,21 +114,27 @@ class DB
 
         $connection = Connection::instance();
 
-        $host = $config['host'] ?? self::$host ?? 'localhost';
-        $db_name = $config['name'] ?? self::$name;
-        $username = $config['username'] ?? self::$username;
-        $password = $config['password'] ?? self::$password;
-        $charset = $config['charset'] ?? self::$charset ?? "utf8";
+        $host_key = $config['host'] ?? self::$host ?? 'db_host';
+        $name_key = $config['name'] ?? self::$name ?? 'db_name';
+        $username_key = $config['username'] ?? self::$username ?? 'db_username';
+        $password_key = $config['password'] ?? self::$password ?? 'db_password';
+        $charset_key = $config['charset'] ?? self::$charset ?? 'db_charset';
 
-        if ( !$db_name || !$username || !$password || !$host )
-            throw new Exception("Dados do banco de dados inválidas");
+        $host = Core::config("env", $host_key, 'localhost');
+        $name = Core::config("env", $name_key);
+        $username = Core::config("env", $username_key);
+        $password = Core::config("env", $password_key);
+        $charset = Core::config("env", $charset_key, 'utf8');
+
+        if ( !$name || !$username || !$password )
+            throw new Exception("Dados do banco de dados inválidos");
         
         self::$pdo = $connection->connect([
-            "host" => $host,
-            "db_name" => $db_name,
-            "username" => $username,
-            "password" => $password,
-            "charset" => $charset
+            "db_host" => $host,
+            "db_name" => $name,
+            "db_username" => $username,
+            "db_password" => $password,
+            "db_charset" => $charset
         ]);
 
         return new self();

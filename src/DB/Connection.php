@@ -23,11 +23,11 @@ class Connection extends Singleton
     {
         $this->conn = null;
 
-        $this->host = $credentials['host'];
+        $this->host = $credentials['db_host'];
         $this->db_name = $credentials['db_name'];
-        $this->username = $credentials['username'];
-        $this->password = $credentials['password'];
-        $this->charset = $credentials['charset'] ?? "utf8";
+        $this->username = $credentials['db_'];
+        $this->password = $credentials['db_password'];
+        $this->charset = $credentials['db_charset'] ?? "utf8";
 
         try { 
             $this->conn = new \PDO('mysql:host=' . $this->host . ';dbname=' . $this->db_name.';charset='.$this->charset, $this->username, $this->password, array(
