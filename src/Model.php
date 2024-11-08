@@ -19,7 +19,7 @@ trait Model
 
             //$config = [
             //    'debug' => $module_config->debug ?? false
-            //];
+           // ];
 
             $config = $module_config ?? [];
 

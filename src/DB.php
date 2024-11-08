@@ -26,6 +26,8 @@ class DB
      */
     public static function table($tableName, $config=[]) 
     {
+        $config = !is_array($config) ? (array)$config : $config;
+
         $config["table"] = $tableName;
 
         if ( isset($config["debug"]) && $config["debug"] ){

@@ -9,6 +9,8 @@ class Executor
     public static function execute(\PDO $pdo, string $query, array $fields=[], $config=[])
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
+
+        //return Response::success('testeeee');
        
         try {
 			
