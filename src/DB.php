@@ -6,6 +6,7 @@ use App\Core\DB\Connection;
 use App\Core\DB\Handler;
 use App\Core\DB\Query\Executor;
 use App\Core\DB\Query\Helpers;
+use Exception;
 
 class DB
 {
@@ -112,13 +113,22 @@ class DB
         if ( isset(self::$pdo) ) new self();
 
         $connection = Connection::instance();
+
+        $host = $config['host'] ?? self::$host ?? 'localhost';
+        $db_name = $config['name'] ?? self::$name;
+        $username = $config['username'] ?? self::$username;
+        $password = $config['password'] ?? self::$password;
+        $charset = $config['charset'] ?? self::$charset ?? "utf8";
+
+        if ( !$db_name || !$username || !$password || !$host )
+            throw new Exception("Dados do banco de dados inválidas");
         
         self::$pdo = $connection->connect([
-            "host" => $config['host'] ?? self::$host,
-            "db_name" => $config['name'] ?? self::$name,
-            "username" => $config['username'] ?? self::$username,
-            "password" => $config['password'] ?? self::$password,
-            "charset" => $config['charset'] ?? self::$charset ?? "utf8"
+            "host" => $host,
+            "db_name" => $db_name,
+            "username" => $username,
+            "password" => $password,
+            "charset" => $charset
         ]);
 
         return new self();
