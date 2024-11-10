@@ -213,13 +213,11 @@ class Handler
             return $query;
         }
 
-        //return Response::success($query);
-
         $pdo = $this->pdo ?? null;
 
         if ( isset($query->error) ) return $query;
 
-        $fields = $query->fields ? (array) $query->fields : [];
+        $fields = isset($query->fields) ? (array)$query->fields : [];
        
         return Executor::execute($pdo, $query->string, $fields, [
             "fetch" => $this->fetch_mode,

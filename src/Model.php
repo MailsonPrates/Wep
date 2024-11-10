@@ -13,13 +13,16 @@ trait Model
             $module_namespace_parts = explode('\\', static::class);
             $module_name = end($module_namespace_parts);
             $module_config = Core::config('module', $module_name);
-            $module_table_name = $module_config->table ?? $module_config->db['table'] ?? null;
+            $module_config_db = $module_config->db ?? [];
+
+            $module_table_name = $module_config->table ?? $module_config_db['table'] ?? null;
 
             if ( !$module_table_name ) throw new \Exception("Nome da tabela não definida nas configurações do módulo: $module_name");
 
-            $config = $module_config ?? [];
+            //$config = $module_config ?? [];
+            $module_config_db['name'] = $module_table_name;
 
-			self::$table = DB::table($module_table_name, $config);
+			self::$table = DB::table($module_table_name, $module_config_db);
 		}
 
         return self::$table->{$method}($props);

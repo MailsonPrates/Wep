@@ -41,7 +41,7 @@ class DB
         return new Handler(self::$pdo, $config);
     }
 
-    public static function query($query_string, $fields=[])
+    public static function query($query_string, $fields=[], $configs=[])
     {
         if ( !$query_string ) return Response::error("Invalid query string");
 
@@ -69,7 +69,7 @@ class DB
 
         }
 
-        return Executor::execute(self::$pdo, $query_string, $fields);
+        return Executor::execute(self::$pdo, $query_string, $fields, $configs);
     }
 
     public static function beginTransaction()
@@ -114,11 +114,11 @@ class DB
 
         $connection = Connection::instance();
 
-        $host_key = $config['host'] ?? self::$host ?? 'db_host';
-        $name_key = $config['name'] ?? self::$name ?? 'db_name';
-        $username_key = $config['username'] ?? self::$username ?? 'db_username';
-        $password_key = $config['password'] ?? self::$password ?? 'db_password';
-        $charset_key = $config['charset'] ?? self::$charset ?? 'db_charset';
+        $host_key = $config['host'] ?? (self::$host ?: 'db_host');
+        $name_key = $config['name'] ?? (self::$name ?: 'db_name');
+        $username_key = $config['username'] ?? (self::$username ?: 'db_username');
+        $password_key = $config['password'] ?? (self::$password ?: 'db_password');
+        $charset_key = $config['charset'] ?? (self::$charset ?: 'db_charset');
 
         $host = Core::config("env", $host_key, 'localhost');
         $name = Core::config("env", $name_key);
@@ -128,7 +128,7 @@ class DB
 
         if ( !$name || !$username || !$password )
             throw new Exception("Dados do banco de dados inválidos");
-        
+
         self::$pdo = $connection->connect([
             "db_host" => $host,
             "db_name" => $name,

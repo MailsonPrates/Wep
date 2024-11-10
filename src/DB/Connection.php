@@ -25,7 +25,7 @@ class Connection extends Singleton
 
         $this->host = $credentials['db_host'];
         $this->db_name = $credentials['db_name'];
-        $this->username = $credentials['db_'];
+        $this->username = $credentials['db_username'];
         $this->password = $credentials['db_password'];
         $this->charset = $credentials['db_charset'] ?? "utf8";
 
