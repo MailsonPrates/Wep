@@ -19,7 +19,8 @@ trait Model
 
             if ( !$module_table_name ) throw new \Exception("Nome da tabela não definida nas configurações do módulo: $module_name");
 
-            //$config = $module_config ?? [];
+            // Repassa props do config do módulo importantes para o db
+            $module_config_db['debug'] = $module_config->debug ?? false;
             $module_config_db['name'] = $module_table_name;
 
 			self::$table = DB::table($module_table_name, $module_config_db);
