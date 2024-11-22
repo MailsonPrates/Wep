@@ -206,7 +206,7 @@ class Handler
     private function execute($query)
     {
         /**
-         * @debug
+         * @debug only
          */
         if ( $this->is_debug ){
             $query->raw = $this::parseQueryRaw($query->string, $query->placeholders);
