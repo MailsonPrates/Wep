@@ -149,7 +149,7 @@ class Update
 
         $save = file_put_contents(CONFIGS_BUILD_FILENAME_FRONT, $configs_json);
 
-        if ( !$configs_json || !$save  ){
+        if ( !$configs_json || !$save ){
             $response->error = true;
             $response->data[] = "Erro ao atualizar o arquivo de configs";
         }

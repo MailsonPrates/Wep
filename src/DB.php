@@ -6,6 +6,7 @@ use App\Core\DB\Connection;
 use App\Core\DB\Handler;
 use App\Core\DB\Query\Executor;
 use App\Core\DB\Query\Helpers;
+use Exception;
 
 class DB
 {
@@ -26,6 +27,8 @@ class DB
      */
     public static function table($tableName, $config=[]) 
     {
+        $config = !is_array($config) ? (array)$config : $config;
+
         $config["table"] = $tableName;
 
         if ( isset($config["debug"]) && $config["debug"] ){
@@ -38,7 +41,7 @@ class DB
         return new Handler(self::$pdo, $config);
     }
 
-    public static function query($query_string, $fields=[])
+    public static function query($query_string, $fields=[], $configs=[])
     {
         if ( !$query_string ) return Response::error("Invalid query string");
 
@@ -66,7 +69,7 @@ class DB
 
         }
 
-        return Executor::execute(self::$pdo, $query_string, $fields);
+        return Executor::execute(self::$pdo, $query_string, $fields, $configs);
     }
 
     public static function beginTransaction()
@@ -110,13 +113,28 @@ class DB
         if ( isset(self::$pdo) ) new self();
 
         $connection = Connection::instance();
-        
+
+        $host_key = $config['host'] ?? (self::$host ?: 'db_host');
+        $name_key = $config['name'] ?? (self::$name ?: 'db_name');
+        $username_key = $config['username'] ?? (self::$username ?: 'db_username');
+        $password_key = $config['password'] ?? (self::$password ?: 'db_password');
+        $charset_key = $config['charset'] ?? (self::$charset ?: 'db_charset');
+
+        $host = Core::config("env", $host_key, 'localhost');
+        $name = Core::config("env", $name_key);
+        $username = Core::config("env", $username_key);
+        $password = Core::config("env", $password_key);
+        $charset = Core::config("env", $charset_key, 'utf8');
+
+        if ( !$name || !$username || !$password )
+            throw new Exception("Dados do banco de dados inválidos");
+
         self::$pdo = $connection->connect([
-            "host" => $config['host'] ?? self::$host,
-            "db_name" => $config['name'] ?? self::$name,
-            "username" => $config['username'] ?? self::$username,
-            "password" => $config['password'] ?? self::$password,
-            "charset" => $config['charset'] ?? self::$charset ?? "utf8"
+            "db_host" => $host,
+            "db_name" => $name,
+            "db_username" => $username,
+            "db_password" => $password,
+            "db_charset" => $charset
         ]);
 
         return new self();
