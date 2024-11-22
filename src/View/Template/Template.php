@@ -20,12 +20,12 @@ class Template
     /**
      * @var string
      */
-    private $name;
+    private $classname;
 
-    public function __construct($name, $route, $request) {
+    public function __construct($classname, $route, $request) {
         $this->request = $request; 
         $this->route = $route;
-        $this->name = $name;
+        $this->classname = $classname;
     }
     
     /**
@@ -34,7 +34,7 @@ class Template
      */
     public function build()
     {
-        $template_class = APP_TEMPLATES_NAMESPACE.$this->name;
+        $template_class = $this->classname;
 
         if ( !class_exists($template_class) ){
             echo "Classe não existe: $template_class";
