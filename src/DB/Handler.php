@@ -217,10 +217,10 @@ class Handler
 
         if ( isset($query->error) ) return $query;
 
-        $fields = isset($query->fields) ? (array)$query->fields : [];
+        $fields = isset($query->placeholders) ? (array)$query->placeholders : [];
 
-       $query->string = $this::parseQueryRaw($query->string, $query->placeholders);
-       
+        //$query->string = $this::parseQueryRaw($query->string, $query->placeholders);
+
         return Executor::execute($pdo, $query->string, $fields, [
             "fetch" => $this->fetch_mode,
             "raw" => $this->raw

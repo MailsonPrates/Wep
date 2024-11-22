@@ -10,8 +10,6 @@ class Executor
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
 
-        //return Response::success('testeeee');
-       
         try {
 			
 			$stmt = $pdo->prepare($query);
