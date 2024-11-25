@@ -293,11 +293,7 @@ export default function Fluent(configs=[]){
                 data,
             }, ajaxProps);
 
-            //console.log({route, data})
-
-           // Core.resetState();
-
-           // console.log("[Fluent]", {State, requestConfigs});
+           // console.log("[Fluent]", {State, requestConfigs, route, data});
 
            Core.resetState();
 
