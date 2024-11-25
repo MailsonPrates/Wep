@@ -19,7 +19,6 @@ export default function Fluent(configs=[]){
         },
 
         where: function(){
-
             let args = Core.getArgs(arguments);
             args.unshift('where');
             return Core.setCondition.apply(null, args);   
@@ -297,6 +296,10 @@ export default function Fluent(configs=[]){
             //console.log({route, data})
 
            // Core.resetState();
+
+           // console.log("[Fluent]", {State, requestConfigs});
+
+           Core.resetState();
 
             return $.ajax(requestConfigs);
         },
