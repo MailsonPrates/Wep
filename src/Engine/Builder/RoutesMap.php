@@ -19,9 +19,21 @@ class RoutesMap
         'post'   => 'POST',
         'put'    => 'PUT' 
     ];
+
+    private static $app_custom_build_actions = [];
     
     public static function build($raw=false)
     {
+        /**
+         * Inicializa App custom build actions (se houver)
+         */
+        $app_custom_build_actions_file = DIR_CONFIG . "/build.php";
+
+        if ( file_exists($app_custom_build_actions_file) ){
+            self::$app_custom_build_actions = include_once($app_custom_build_actions_file);
+        }
+        
+
         $modules_routes = self::getModulesRoutes();
 
         /**
@@ -292,6 +304,20 @@ class RoutesMap
                     : $parent_view_placeholder,
                 'controller' => $controller
             ];
+
+            /**
+             * Executa App Custom Build Action: each_route
+             */
+            $each_route_action = self::$app_custom_build_actions['each_route'] ?? false;
+
+            if ( $each_route_action && is_callable($each_route_action) ){
+                $response_item = $each_route_action($response_item, [
+                    'path' => $path,
+                    'type' => $type,
+                    'raw' => $item,
+                    'module' => $route
+                ]) ?: $response_item;
+            }
 
             $response[$path][$type] = $response_item;
         }
