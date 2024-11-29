@@ -91,7 +91,10 @@ class Operators
      */
     static private function getPlaceholderId($col, $type)
     {
-        return join("_", [$col, $type, uniqid()]);
+        $id = join("_", [$col, $type, uniqid()]);
+        $id = str_replace(".", "_", $id);
+
+        return $id;
     }
 
     /**
