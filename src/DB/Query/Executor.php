@@ -10,6 +10,8 @@ class Executor
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
 
+        $debug = [];
+
         try {
 			
 			$stmt = $pdo->prepare($query);
@@ -21,9 +23,10 @@ class Executor
                 foreach( $fields as $key => &$value ){
                     $value = $value === NULL ? "" : $value;
                     $stmt->bindParam(":$key", $value);
+                    $debug[":$key"] = $value;
                 }
             }
-            
+
 			$result = $stmt->execute();
 
             $query_method = explode(" ", strtolower($query))[0];

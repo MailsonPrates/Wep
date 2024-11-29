@@ -201,7 +201,7 @@ class Handler
      * @param object $query
      * @param string $query->type
      * @param string $query->string
-     * @param array $query->fields
+     * @param array $query->fields_list
      */
     private function execute($query)
     {
