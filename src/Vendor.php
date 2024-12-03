@@ -33,11 +33,11 @@ trait Vendor
         $hooks = $vendor_data['hooks'] ?? [];
 
         return new VendorMethod([
-            'headers' => $headers,
+            //'headers' => $headers,
             'resources' => $resources,
             'vendor' => $vendor,
             'vendor_instance' => $vendorInstance,
-            'hooks' => $hooks
+            //'hooks' => $hooks
         ]);
     }
 }

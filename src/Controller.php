@@ -62,7 +62,7 @@ trait Controller
         
         try {
 
-            $method = $routeData->api;
+            $method = $routeData->method;
             $resource = $routeData->resource;
             $module_class = $routeData->namespace . '\\' . $routeData->module;
         

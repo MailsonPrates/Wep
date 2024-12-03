@@ -82,6 +82,9 @@ class RoutesMap
         // Pega Vendors
         $vendor_routes_list = Vendor::buildRoutes();
 
+        //echo json_encode($vendor_routes_list) . PHP_EOL;
+        //echo "------" . PHP_EOL;
+
         $routes_list = array_merge($routes_list, $vendor_routes_list);
 
         // Separa rotas agrupadas na prop api
@@ -143,6 +146,9 @@ class RoutesMap
 
             $routes_splited[] = $new_routes;
         }
+
+        //echo json_encode($routes_splited) . PHP_EOL;
+        //echo "------" . PHP_EOL;
 
         return $routes_splited;
     }    

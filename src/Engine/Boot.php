@@ -11,6 +11,7 @@ trait Boot
     private static $status = "off";
     private static $config = [];
     public static $data = [];
+    public static $env = null;
 
     /**
      * @param array $config
@@ -148,5 +149,7 @@ trait Boot
 
         $env = new Env($path);
         $env->load();
+
+        self::$env = $env;
     }
 }

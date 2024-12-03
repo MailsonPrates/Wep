@@ -45,12 +45,11 @@ class Vendor
 
         foreach( $module_configs as $module ){
 
-            $module_endpoints = $module['endpoints'] ?? [];
             $module_name = $module['module_name'];
 
             $data = [
-                'headers' =>$module['headers'] ?? [],
-                'resources' => Endpoint::buildResources($module_endpoints),
+                'headers' => $module['headers'] ?? [],
+                'resources' => Endpoint::buildResources($module),
                 'hooks' => $module['hooks'] ?? []
             ];
 

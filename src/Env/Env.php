@@ -109,14 +109,31 @@ class Env
      */
     public function set($key, $value)
     {
-
         if (!is_readable($this->path)) return (object)[
             "error" => true,
             "code" => "file_not_readable",
             "message" => sprintf('%s file is not readable', $this->path)
         ];
 
-        $content = file_get_contents($this->path);
+        $file = glob($this->path);
+        $file = $file[0];
+
+        $handle = @fopen($file, 'r');
+        flock($handle, LOCK_SH);
+
+        $size = 0;
+        $size = @filesize($file);
+
+        $content = '';
+
+        if ($size > 0) {
+            $content = fread($handle, $size);
+        }
+
+        flock($handle, LOCK_UN);
+		fclose($handle);
+
+        //$content = file_get_contents($this->path);
         $contentList = explode("\r\n", $content);
 
         foreach( $contentList as &$item ){
@@ -139,7 +156,19 @@ class Env
 
         $newContent = join("\r\n", $contentList);
 
-        file_put_contents($this->path, $newContent);
+        $handle = fopen($file, 'w');
+
+		flock($handle, LOCK_EX);
+
+		fwrite($handle, $newContent);
+
+		fflush($handle);
+
+		flock($handle, LOCK_UN);
+
+		fclose($handle);
+
+        //file_put_contents($this->path, $newContent);
     }
 
     /**

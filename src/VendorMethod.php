@@ -35,11 +35,11 @@ class VendorMethod
 
     public function __construct($config=[]) 
     {
-        $this->headers = $config['headers'];
+       // $this->headers = $config['headers'];
         $this->resources = $config['resources'];
         $this->vendor = $config['vendor'];
         $this->vendor_instance = $config['vendor_instance'];
-        $this->hooks = $config['hooks'];
+        //$this->hooks = $config['hooks'];
     }
 
     public function __call($methodName, $arguments)
@@ -49,12 +49,12 @@ class VendorMethod
 
         if ( empty($method_data) ) throw new Exception("Método '$methodName' não definido nas configurações do módulo '$vendor'. Certifique-se de que o arquivo de config. do módulo foi corretamente criado e o app foi atualizado pelo comando > php app update");
 
-        $headers = !empty($method_data['headers'])
-            ? $method_data['headers']
-            : $this->headers;
+        $headers = $method_data['headers'] ?? [];
+        $hooks = $method_data['hooks'] ?? [];
 
         return $this->executeMethod([
             'headers' => Endpoint::getParsedHeaders($headers),
+            'hooks' => $hooks,
             'url' => Endpoint::parseEnvVariables($method_data['url']),
             'type' => $method_data['type'],
             'arguments' => $arguments[0] ?? []
@@ -76,7 +76,7 @@ class VendorMethod
 
         $request = new Request($request_props);
 
-        $hooks = $this->hooks;
+        $hooks = $config['hooks'];
 
         /**
          * Call Hook beforeRequest 
