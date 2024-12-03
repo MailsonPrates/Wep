@@ -64,34 +64,6 @@ class Endpoint
         }
 
         return $routes;
-
-        //// V1 ------ START
-
-        // produtos|get:http_method|update|delete
-        $parts = explode("|", $key);
-
-        $resource = $parts[0];
-        $methods = array_slice($parts, 1);
-        
-        foreach( $methods as $method ){
-
-            $has_props = str_contains($method, ':');
-            $prop = '';
-
-            if ( $has_props ){
-                $method_parts = explode(':', $method);
-                $method = $method_parts[0];
-                $prop = $method_parts[1];
-            }
-
-            $routes[] = [
-                'path' => "/$resource/$method",
-                'method' => $method,
-                'resource' => $resource
-            ];
-        }
-
-        return $routes;
     }
 
     /**
@@ -172,9 +144,6 @@ class Endpoint
 
             }
         }
-
-        echo json_encode($resources) . PHP_EOL;
-        echo PHP_EOL;
 
         return $resources;
     }
@@ -264,25 +233,6 @@ class Endpoint
 
         return $response;
 
-
-        //// V1 - START 
-
-        // produtos|get:http_method|update|delete
-        $parts = explode("|", $key);
-        $resource = trim($parts[0]);
-        $methods = array_slice($parts, 1);
-
-        $response = Obj::set([
-            'resource' => $resource,
-            'methods' => $methods
-        ]);
-
-        $custom_data = self::getCustomData($url);
-
-        $response->url = $custom_data->url;
-        $response->headers = $custom_data->headers ?? [];
-
-        return $response;
     }
 
     /**
