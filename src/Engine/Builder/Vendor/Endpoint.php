@@ -15,27 +15,22 @@ class Endpoint
         'find' => 'get'
     ];
 
-    public static function convertToRoute($endpoints=[])
+    public static function convertToRoute($module_endpoints)
     {
         $routes = [];
 
-        foreach( $endpoints as $key => $endpoint ){
+        foreach( $module_endpoints as $resource => $endpoint ){
 
-            // produtos|get:http_method|update|delete
-            $parts = explode("|", $key);
+            $endpoint_path = $endpoint['path'] ?? "";
+            $endpoint_methods = $endpoint['methods'] ?? [];
+            $endpoint_groups = $endpoint['groups'] ?? [];
 
-            $resource = $parts[0];
-            $methods = array_slice($parts, 1);
-            
-            foreach( $methods as $method ){
-
+            foreach($endpoint_methods as $method){
                 $has_props = str_contains($method, ':');
-                $prop = '';
 
                 if ( $has_props ){
                     $method_parts = explode(':', $method);
                     $method = $method_parts[0];
-                    $prop = $method_parts[1];
                 }
 
                 $routes[] = [
@@ -45,6 +40,55 @@ class Endpoint
                 ];
             }
 
+            foreach($endpoint_groups as $group){
+
+                $group_path = $group['path'];
+                $group_methods = $group['methods'] ?? [];
+                $path = $endpoint_path . $group_path;
+
+                foreach($group_methods as $method){
+                    $has_props = str_contains($method, ':');
+    
+                    if ( $has_props ){
+                        $method_parts = explode(':', $method);
+                        $method = $method_parts[0];
+                    }
+    
+                    $routes[] = [
+                        'path' => $path . '/' . $method,
+                        'method' => $method,
+                        'resource' => $resource
+                    ];
+                }
+            }
+        }
+
+        return $routes;
+
+        //// V1 ------ START
+
+        // produtos|get:http_method|update|delete
+        $parts = explode("|", $key);
+
+        $resource = $parts[0];
+        $methods = array_slice($parts, 1);
+        
+        foreach( $methods as $method ){
+
+            $has_props = str_contains($method, ':');
+            $prop = '';
+
+            if ( $has_props ){
+                $method_parts = explode(':', $method);
+                $method = $method_parts[0];
+                $prop = $method_parts[1];
+            }
+
+            $routes[] = [
+                'path' => "/$resource/$method",
+                'method' => $method,
+                'resource' => $resource
+            ];
         }
 
         return $routes;
@@ -53,16 +97,42 @@ class Endpoint
     /**
      * @return object array
      */
-    public static function buildResources($endpoints=[])
+    public static function buildResources($module=[])
     {
         $resources = [];
+        $module_endpoints = $module['endpoints'] ?? [];
+        $module_urls = $module['url'] ?? $module['urls'] ?? "";
+        $module_headers = $module['headers'] ?? [];
+        $module_hooks = $module['hooks'] ?? [];
 
-        foreach( $endpoints as $key => $endpointUrl ){
+        $has_multiples_urls = is_array($module_urls);
 
-            $endpoint = self::getData($key, $endpointUrl);
-            $resource = $endpoint->resource;
-            
-            foreach( $endpoint->methods as $method ){
+        foreach( $module_endpoints as $resource => $endpoint ){
+
+            // $endpoint = self::getData($resource, $endpoint, $module);
+            //  $resource = $endpoint->resource;
+
+            $endpoint_methods = $endpoint['method'] ?? $endpoint['methods'] ?? [];
+            $endpoint_url = $endpoint['url'] ?? "";
+            $endpoint_path = $endpoint['path'] ?? "";
+            $endpoint_headers = $endpoint['header'] ?? $endpoint['headers'] ?? [];
+            $endpoint_headers = self::mergeHeaders($endpoint_headers, $module_headers);
+            $endpoint_groups = $endpoint['group'] ?? $endpoint['groups'] ?? [];
+            $endpoint_hooks = $endpoint['hooks'] ?? [];
+            $endpoint_hooks = self::mergeHooks($endpoint_hooks, $module_hooks);
+
+            $url = $endpoint_url ?: $module_urls;
+
+            if ( $has_multiples_urls ){
+                $url_key = Str::between($endpoint_url, "{{", "}}");
+                $url_key = trim($url_key);
+
+                $url = $module_urls[$url_key] ?? $endpoint_url;
+            }
+
+            $url .= $endpoint_path; 
+
+            foreach( $endpoint_methods as $method ){
 
                 $method_data = self::getMethodData($method);
 
@@ -71,21 +141,132 @@ class Endpoint
                 }
 
                 $resources[$resource][$method_data->method] = [
-                    'url' => $endpoint->url,
-                    'headers' => $endpoint->headers,
-                    'type' => $method_data->type
+                    'url' => $url,
+                    'headers' => $endpoint_headers,
+                    'type' => $method_data->type,
+                    'hooks' => $endpoint_hooks
                 ];
             }
+
+            // Groups
+            foreach($endpoint_groups as $group){
+                $group_path = $group['path'];
+                $group_methods = $group['method'] ?? $group['methods'] ?? [];
+                $group_url = $url . $group_path;
+
+                foreach( $group_methods as $method ){
+
+                    $method_data = self::getMethodData($method);
+    
+                    if ( !isset($resources[$resource]) ){
+                        $resources[$resource] = [];
+                    }
+    
+                    $resources[$resource][$method_data->method] = [
+                        'url' => $group_url,
+                        'headers' => $endpoint_headers,
+                        'type' => $method_data->type,
+                        'hooks' => $endpoint_hooks
+                    ];
+                }
+
+            }
         }
+
+        echo json_encode($resources) . PHP_EOL;
+        echo PHP_EOL;
 
         return $resources;
     }
 
     /**
+     * @param array $current
+     * @param array $prev
+     * 
+     * @return array
+     */
+    private static function mergeHeaders($current, $prev)
+    {
+        $removes = $current['remove'] ?? $current['removes'] ?? [];
+        
+        if ( count($removes) > 0 ){
+            unset($current['remove']);
+            unset($current['removes']);
+        }
+
+        foreach($removes as $item){
+            unset($prev[$item]);
+        }
+
+        $headers_final = array_merge($prev, $current);
+
+        return $headers_final;
+    }
+
+        /**
+     * @param array $current
+     * @param array $prev
+     * 
+     * @return array
+     */
+    private static function mergeHooks($current, $prev)
+    {
+        $hooks_final = [
+            'beforeRequest' => $prev['beforeRequest'] ?? [],
+            'afterRequest' => $prev['afterRequest'] ?? [],
+            'onError' => $prev['onError'] ?? [],
+            'onSuccess' => $prev['onSuccess'] ?? []
+        ];
+
+       foreach($current as $event => $hooks){
+
+            $hooks_to_remove = [];
+
+            foreach($hooks as $name){
+                $is_remove = substr($name, 0, 1) === "-";
+
+                if ( $is_remove ){
+                    $hook_to_remove = substr($name, 1);
+                    $hooks_to_remove[] = $hook_to_remove;
+                    continue;
+                }
+
+                $hooks_final[$event][] = $name;
+            }
+
+            foreach($hooks_final[$event] as $i => $item){
+
+                if ( in_array($item, $hooks_to_remove) ){
+                    array_splice($hooks_final[$event], $i, 1);
+                }
+            }
+       }
+
+       return $hooks_final;
+    }
+
+    /**
      * @return object resource|url|headers|methods
      */
-    private static function getData($key, $url)
+    private static function getData($resource, $endpoint, $module)
     {
+        $methods = $endpoint['methods'] ?? [];
+
+        $response = Obj::set([
+            'resource' => $resource,
+            'methods' => $methods
+        ]);
+
+        $custom_data = self::getCustomData($url);
+
+        $response->url = $custom_data->url;
+        $response->headers = $custom_data->headers ?? [];
+
+        return $response;
+
+
+        //// V1 - START 
+
         // produtos|get:http_method|update|delete
         $parts = explode("|", $key);
         $resource = trim($parts[0]);
@@ -159,8 +340,8 @@ class Endpoint
     {
         $headers_parsed = [];
 
-        foreach( $headers as $item ){
-            $headers_parsed[] = self::parseEnvVariables($item);
+        foreach( $headers as $key => $value ){
+            $headers_parsed[] = $key . ': ' . self::parseEnvVariables($value);
         }
 
         return $headers_parsed;
@@ -190,7 +371,7 @@ class Endpoint
 
             if ( $is_placeholder ){
                 $key = Str::between($word, '{{', '}}');
-                $value = Core::config($key);
+                $value = Core::config($key) ?? "";
                 $parsed = str_replace('{{'.$key.'}}', $value, $word);
             }
                 
