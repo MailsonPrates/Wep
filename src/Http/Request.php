@@ -221,6 +221,12 @@ class Request {
 		return $this;
 	}
 
+	public function replaceHeaders($headers=[])
+	{
+		$this->headers = $headers;
+		return $this;
+	}
+
 	/**
 	 * Set the username and password for HTTP basic authentication.
 	 *
