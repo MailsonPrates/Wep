@@ -5,6 +5,8 @@ namespace App\Core\Env;
 use App\Core\Env\AbstractProcessor;
 use App\Core\Env\BooleanProcessor;
 use App\Core\Env\QuoteProcessor;
+use App\Core\Response;
+use Exception;
 
 /**
  * @version v1.0.1
@@ -102,73 +104,107 @@ class Env
 
     /**
      * Atualiza valores de uma variavel
-     * @todo add opção para se nao existir, criar.
      * 
      * @param string $key
      * @param string $value
      */
     public function set($key, $value)
     {
-        if (!is_readable($this->path)) return (object)[
-            "error" => true,
-            "code" => "file_not_readable",
-            "message" => sprintf('%s file is not readable', $this->path)
-        ];
+        try {
 
-        $file = glob($this->path);
-        $file = $file[0];
+            /**
+             * Lê o arquivo
+             */
+            // Ler o conteúdo do arquivo original
+            if (!file_exists($this->path)) {
+                throw new Exception('Arquivo não encontrado:');
+            }
 
-        $handle = @fopen($file, 'r');
-        flock($handle, LOCK_SH);
+            $fileHandle = fopen($this->path, 'rb');
+            if (!$fileHandle) {
+                throw new Exception('Erro ao abrir o arquivo para leitura');
+            }
 
-        $size = 0;
-        $size = @filesize($file);
+            if (!flock($fileHandle, LOCK_SH)) {
+                fclose($fileHandle);
+                throw new Exception('Não foi possível bloquear o arquivo para leitura.');
+            }
 
-        $content = '';
+            $content = fread($fileHandle, filesize($this->path));
+            flock($fileHandle, LOCK_UN);
+            fclose($fileHandle);
 
-        if ($size > 0) {
-            $content = fread($handle, $size);
+            if ($content === false) {
+                throw new Exception('Erro ao ler o conteúdo do arquivo.');
+            }
+
+            /**
+             * Atualiza conteudo
+             */
+
+            $contentList = explode("\r\n", $content);
+
+            foreach( $contentList as &$item ){
+                
+                $isSetLine = str_contains($item, "=");
+     
+                 if ( !$isSetLine ) continue;
+     
+                 $itemParts = explode("=", $item);
+                 $itemKey = $itemParts[0];
+     
+                 if ( $itemKey != $key ) continue;
+     
+                 $item = "$key=$value";
+     
+                 break;
+            }
+     
+            $newContent = join("\r\n", $contentList);
+
+            /**
+             * Salva arquivo
+             */
+             // Salvar no arquivo temporário
+             $tempFilePath = $this->path . '.tmp';
+             $tempFileHandle = fopen($tempFilePath, 'wb');
+             if (!$tempFileHandle) {
+                 throw new Exception('Erro ao criar o arquivo temporário.');
+             }
+ 
+             if (!flock($tempFileHandle, LOCK_EX)) {
+                 fclose($tempFileHandle);
+                 unlink($tempFilePath);
+                 throw new Exception('Não foi possível bloquear o arquivo temporário.');
+             }
+ 
+             if (fwrite($tempFileHandle, $newContent) === false) {
+                 flock($tempFileHandle, LOCK_UN);
+                 fclose($tempFileHandle);
+                 unlink($tempFilePath);
+                 throw new Exception('Erro ao escrever no arquivo temporário.');
+             }
+ 
+             fflush($tempFileHandle);
+             flock($tempFileHandle, LOCK_UN);
+             fclose($tempFileHandle);
+ 
+             // Substituir o arquivo original
+             if (!rename($tempFilePath, $this->path)) {
+                 unlink($tempFilePath);
+                 throw new Exception('Erro ao substituir o arquivo original.');
+             }
+
+             /**
+              * Recarregar env
+              */
+              $this->load();
+
+              return Response::success();
+
+        } catch (\Throwable $th) {
+            return Response::error($th->getMessage() . ' ' . $this->path);
         }
-
-        flock($handle, LOCK_UN);
-		fclose($handle);
-
-        //$content = file_get_contents($this->path);
-        $contentList = explode("\r\n", $content);
-
-        foreach( $contentList as &$item ){
-           
-            $isSetLine = str_contains($item, "=");
-
-            if ( !$isSetLine ) continue;
-
-            $itemParts = explode("=", $item);
-            $itemKey = $itemParts[0];
-
-           // echo "$itemKey = $key <br>";
-
-            if ( $itemKey != $key ) continue;
-
-            $item = "$key=$value";
-
-            break;
-        }
-
-        $newContent = join("\r\n", $contentList);
-
-        $handle = fopen($file, 'w');
-
-		flock($handle, LOCK_EX);
-
-		fwrite($handle, $newContent);
-
-		fflush($handle);
-
-		flock($handle, LOCK_UN);
-
-		fclose($handle);
-
-        //file_put_contents($this->path, $newContent);
     }
 
     /**

@@ -123,8 +123,10 @@ class Request {
 		}
 	}
 
-	public function getOptions()
+	public function getOptions($prop=null)
 	{
+		if ( $prop && $this->{$prop} ) return $this->{$prop} ?? null;
+
 		return [
 			'url' => $this->url,
 			'url_parameterized' => $this->url_parameterized,
@@ -216,6 +218,12 @@ class Request {
 
 		$this->headers[] = $headers;
 
+		return $this;
+	}
+
+	public function replaceHeaders($headers=[])
+	{
+		$this->headers = $headers;
 		return $this;
 	}
 

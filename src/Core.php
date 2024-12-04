@@ -9,8 +9,6 @@ class Core
 {
     use Boot;
 
-    public static $teste = "aaaa";
-
     /**
      * Retorna dados de configuração da aplicação.
      * - Em produção, retorna dados do cache.
