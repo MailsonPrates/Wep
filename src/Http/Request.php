@@ -123,9 +123,9 @@ class Request {
 		}
 	}
 
-	public function getOptions($key=null)
+	public function getOptions($prop=null)
 	{
-		if ( $key && isset($this->{$key}) ) return $this->{$key};
+		if ( $prop && $this->{$prop} ) return $this->{$prop} ?? null;
 
 		return [
 			'url' => $this->url,
