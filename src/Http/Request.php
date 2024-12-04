@@ -123,8 +123,10 @@ class Request {
 		}
 	}
 
-	public function getOptions()
+	public function getOptions($key=null)
 	{
+		if ( $key && isset($this->{$key}) ) return $this->{$key};
+
 		return [
 			'url' => $this->url,
 			'url_parameterized' => $this->url_parameterized,
