@@ -10,6 +10,8 @@ export default function Fluent(configs=[]){
     const defaultMethods = ['delete', 'create', 'update', 'get'];
     const routesByMethod = {};
 
+    //console.log({routes});
+
     let State = {};
 
     let Api = {
@@ -221,6 +223,8 @@ export default function Fluent(configs=[]){
 
                 let methodName = route.method;
                 let group = route.resource;
+
+                //console.log("[Fluent] setRoutes", {route});
                 
                 /**
                  * Assumo que todas as rotas que tem a prop group
@@ -247,9 +251,20 @@ export default function Fluent(configs=[]){
 
                 let isDefaultMethods = defaultMethods.includes(methodName);
 
+                /**
+                 * Quando vem custom.method força o uso do fluent
+                 * usando o método customizado que veio
+                 */
+                if ( route.custom && route.custom.method ){
+                    Core[methodName] = Core[route.custom.method];
+                    isDefaultMethods = true;
+                }
+
                 Api[methodName] = isDefaultMethods 
-                    ? Core[methodName]
+                    ? Core[methodName].bind(route)
                     : (props={}) => Core.buildRequest(methodName, props);
+
+                    //console.log({route, isDefaultMethods, methodName, Api});
             });
 
             if ( !hasDefaultRoutes ){
@@ -283,6 +298,8 @@ export default function Fluent(configs=[]){
 
             let route = routesByMethod[method];
 
+           // console.log({route, routesByMethod, method});
+
             if ( !route ) return; /** @todo error */
 
             let requestConfigs = $.extend(true, {
@@ -293,7 +310,7 @@ export default function Fluent(configs=[]){
                 data,
             }, ajaxProps);
 
-           // console.log("[Fluent]", {State, requestConfigs, route, data});
+          // console.log("[Fluent]", {State, requestConfigs, route, data});
 
            Core.resetState();
 
@@ -308,10 +325,11 @@ export default function Fluent(configs=[]){
 
         get: function(){
 
+            let methodName = this.custom && this.custom.method ? this.method : 'get';
             let args = arguments;
             let argsCount = args.length;
 
-            if ( !argsCount ) return Core.buildRequest('get');
+            if ( !argsCount ) return Core.buildRequest(methodName);
 
             let firstArg = args[0];
             let typeFirstArg = $.type(firstArg);
@@ -320,7 +338,7 @@ export default function Fluent(configs=[]){
             // .get({fields: [], where: []})
             if ( isVerboseProps ){
                 Core.setVerboseProps(firstArg);
-                return Core.buildRequest('get');
+                return Core.buildRequest(methodName);
             }
 
             // .get(["nome", "idade"])
@@ -333,10 +351,12 @@ export default function Fluent(configs=[]){
                 State.fields.push(field);
             }
 
-            return Core.buildRequest('get');
+            return Core.buildRequest(methodName);
         },
 
         create: function(){
+            let methodName = this.custom && this.custom.method ? this.method : 'create';
+
             let args = Core.getArgs(arguments);
             let argsCount = args.length;
 
@@ -353,10 +373,12 @@ export default function Fluent(configs=[]){
 
             State.fields = fields;
 
-            return Core.buildRequest('create');
+            return Core.buildRequest(methodName);
         },
 
         update: function(){
+            let methodName = this.custom && this.custom.method ? this.method : 'update';
+
             let args = Core.getArgs(arguments);
             let argsCount = args.length;
 
@@ -380,10 +402,11 @@ export default function Fluent(configs=[]){
 
             State.fields = fields;
 
-            return Core.buildRequest('update');
+            return Core.buildRequest(methodName);
         },
 
         delete: function(){
+            let methodName = this.custom && this.custom.method ? this.method : 'delete';
             let args = Core.getArgs(arguments);
             let argsCount = args.length;
 
@@ -391,7 +414,7 @@ export default function Fluent(configs=[]){
                 Api.where.apply(null, args);
             }
 
-            return Core.buildRequest('delete');
+            return Core.buildRequest(methodName);
         },
 
         // Helpers
