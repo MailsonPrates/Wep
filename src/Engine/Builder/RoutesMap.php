@@ -386,12 +386,14 @@ class RoutesMap
                         $type = strtolower($route->type);
                         $path = $route->path;
                         $resource = $route->resource ?? null;
+                        $custom = $route->custom ?? [];
     
                         $module_routes[] = [
                             'type' => $type,
                             'method' => $method,
                             'path' => $path,
-                            'resource' => $resource
+                            'resource' => $resource,
+                            'custom' => $custom
                         ];
                     }
                 }
