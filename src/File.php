@@ -31,7 +31,7 @@ class File
     public function __construct($path=null)
     {
 		if ( $path && !file_exists($path) ){
-			$this->put($path, "");
+			self::put($path, "");
 		}
 
 		$files = glob($path);
@@ -123,7 +123,7 @@ class File
 	
 	public function append($content="")
 	{
-	    $this->put($this->filename, $content, FILE_APPEND | LOCK_EX);
+	    self::put($this->filename, $content, FILE_APPEND | LOCK_EX);
 	}
 
 	/**
