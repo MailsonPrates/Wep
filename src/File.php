@@ -2,17 +2,38 @@
 
 namespace App\Core;
 
+use Exception;
+
 class File
 {
     public $file = null;
     public $filename = null;
+
+	public static $types = [
+        'jpg',
+        'jpeg',
+        'gif',
+        'png',
+        'webp'
+    ];
+
+    public static $mime_type = [
+        'image/jpeg',
+        'image/pjpeg',
+        'image/png',
+        'image/x-png',
+        'image/gif',
+        'image/webp'
+    ];
+
+    public static $max_size = 5242880;
     
     public function __construct($path=null)
     {
 		if ( $path && !file_exists($path) ){
 			$this->put($path, "");
 		}
-     
+
 		$files = glob($path);
 		$this->file = $files[0] ?? null;
         $this->filename = $path;
@@ -127,4 +148,69 @@ class File
         $size = filesize($this->filename);
         return is_int($size) && $size > 0 ? false : $size;
     }
+
+    /**
+     * @param array $props
+     * @param string $props directory
+     * @param array $props file
+     * @param string|int $props prefix
+     * 
+     */
+    public static function upload($props=[])
+    {
+        /**
+         * Handle Directory
+         */
+        $dir_image = DIR_ASSETS . '/images';
+
+        $directory = isset($props['directory']) 
+            ? rtrim($dir_image . $props['directory'], '/')
+            : $dir_image;
+
+		// Check directory and create
+		if ( !is_dir($directory) && !mkdir($directory, 0777, true) ) {
+            throw new Exception("Erro ao criar o diretório");
+		}
+
+        /**
+         * Handle File
+         */
+        $file = $props['file'] ?? $_FILES['file'] ?? [];
+
+        if ( empty($file) ) throw new Exception("Arquivo não enviado");
+
+        $filename = $file['name'];
+
+        // Check file extension types
+        if ( !in_array(Str::substr(strrchr($filename, '.'), 1), self::$types) ) {
+            throw new Exception("Tipo de arquivo não permitido");
+        }
+
+        // Create new filename
+        $file_id = uniqid($props['prefix'] ? $props['prefix'] . '-' : "") . uniqid();
+        $filename_ext = explode(".", $filename)[1];
+        $filename = $file_id . '.' . $filename_ext;
+
+        // Check file mime types
+        if ( !in_array($file['type'], self::$mime_type) ) {
+            throw new Exception("Tipo de arquivo inválido");
+        }
+
+        // Check file size
+        if ( $file['size'] > self::$max_size ) {
+            throw new Exception("O tamanho do arquivo é muito grande");
+        }
+
+        // Return any upload error
+        if ( $file['error'] != UPLOAD_ERR_OK ) {
+            throw new Exception("Houve um erro ao fazer upload do arquivo: ". $file['error']);
+        }
+
+        move_uploaded_file($file['tmp_name'], $directory . '/' . $filename);
+
+        $uploaded_file = $directory . '/' . $filename;
+
+        return $uploaded_file;
+    }
+    
 }

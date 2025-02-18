@@ -54,4 +54,23 @@ class Str
         
         return $output;
     }
+
+    public static function substr($string, $offset, $length = null) 
+    {
+        if ($length === null) {
+            return iconv_substr($string, $offset, self::len($string), 'UTF-8');
+        } else {
+            return iconv_substr($string, $offset, $length, 'UTF-8');
+        }
+    }
+    
+    public static function len($string) 
+    {
+        return mb_strlen($string);
+    }
+    
+    public static function strrpos($string, $needle, $offset = 0) 
+    {
+        return mb_strrpos($string, $needle, $offset);
+    }
 }
