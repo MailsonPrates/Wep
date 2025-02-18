@@ -31,7 +31,7 @@ class File
     public function __construct($path=null)
     {
 		if ( $path && !file_exists($path) ){
-			$this->put($path, "");
+			self::put($path, "");
 		}
 
 		$files = glob($path);
@@ -123,14 +123,14 @@ class File
 	
 	public function append($content="")
 	{
-	    $this->put($this->filename, $content, FILE_APPEND | LOCK_EX);
+	    self::put($this->filename, $content, FILE_APPEND | LOCK_EX);
 	}
 
 	/**
      * Mesmo que file_put_contents, mas criando 
      * diretórios caso nao existam
      */
-    public function put($fullPath, $contents, $flags = 0)
+    public static function put($fullPath, $contents, $flags = 0)
     {
         $parts = explode( '/', $fullPath );
         array_pop( $parts );
@@ -142,10 +142,10 @@ class File
         return file_put_contents( $fullPath, $contents, $flags );
     }
 
-    public function isEmpty(): bool|int
+    public static function isEmpty($filename=""): bool|int
     {
         clearstatcache();
-        $size = filesize($this->filename);
+        $size = filesize($filename);
         return is_int($size) && $size > 0 ? false : $size;
     }
 
