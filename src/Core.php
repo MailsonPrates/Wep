@@ -133,6 +133,11 @@ class Core
     public static function assets($path="", $cacheBooster=null)
     {
         $assets_url = explode("/public", DIR_ASSETS)[1];
+        $dir_name = self::config("dir.name", null);
+
+        if ( $dir_name ){
+            $assets_url = "/" . $dir_name . $assets_url;
+        }
 
         if ( $path ){
             $assets_url .= ($path[0] == "/" ? $path : "/" . $path);

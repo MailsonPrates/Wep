@@ -96,7 +96,8 @@ class Module
 
             $content = call_user_func_array([static::class, $method], [
                 [
-                    'module_name' => $module_name
+                    'module_name' => $module_name,
+                    'namespace' => $module_namespace
                 ]
             ]);
 
@@ -134,14 +135,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function regularModel($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             '<?php',
             ' ',
-            'namespace App\Modules\\'.$module_name.';',
+            'namespace '.$namespace.';',
             ' ',
             'use App\Core\Model;',
             ' ',
@@ -157,14 +164,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function regularApi($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             '<?php',
             ' ',
-            "namespace App\Modules\\".$module_name.";",
+            "namespace ".$namespace.";",
             ' ',
             'use App\Core\Controller;',
             ' ',
@@ -219,14 +232,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function vendorModel($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             "<?php",
             " ",
-            "namespace App\Modules\Vendor\\$module_name;",
+            "namespace $namespace;",
             " ",
             "use App\Core\Vendor;",
             " ",
@@ -241,15 +260,21 @@ class Module
             "}",
         ]);
     }
-
+    
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function vendorApi($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             "<?php",
             " ",
-            "namespace App\Modules\Vendor\\$module_name;",
+            "namespace $namespace;",
             " ",
             "use App\Core\Controller;",
             " ",
