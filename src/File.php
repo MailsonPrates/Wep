@@ -130,7 +130,7 @@ class File
      * Mesmo que file_put_contents, mas criando 
      * diretórios caso nao existam
      */
-    public function put($fullPath, $contents, $flags = 0)
+    public static function put($fullPath, $contents, $flags = 0)
     {
         $parts = explode( '/', $fullPath );
         array_pop( $parts );
