@@ -142,10 +142,10 @@ class File
         return file_put_contents( $fullPath, $contents, $flags );
     }
 
-    public function isEmpty(): bool|int
+    public static function isEmpty($filename=""): bool|int
     {
         clearstatcache();
-        $size = filesize($this->filename);
+        $size = filesize($filename);
         return is_int($size) && $size > 0 ? false : $size;
     }
 
