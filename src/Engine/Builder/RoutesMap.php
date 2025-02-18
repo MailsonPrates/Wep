@@ -214,11 +214,9 @@ class RoutesMap
 
         $front = [$alert];
         $front[] = join("\r", $imports);
-        $front[] = "\r";
-        $front[] = 'const RouteMaps = [';
-        $front[] = join(",\r", $buildMaps->frontend);
-        $front[] = '];';
-        $front[] = 'export default RouteMaps;';
+        $front[] = "\n";
+        $front[] = 'export default function RouteMaps(){';
+        $front[] = join("\r", $buildMaps->frontend);
         $front = join("\r", $front);
 
         // BACK
@@ -421,17 +419,23 @@ class RoutesMap
     private static function buildFrontendMap($map)
     {
         $result = Obj::set([
-            'imports' => [],
+            'imports' => [
+                'import React, { lazy } from "react";',
+                'import {Route} from "react-router";'
+            ],
             'items' => []
         ]);
 
-        foreach( $map as $item ){
+        $elements = [];
+        $routes = ["\treturn (", "\t\t<>"];
+
+        foreach( $map as $index => $item ){
            
-            foreach( $item as $route ){
+            foreach( $item as $key => $route ){
                 $route = Obj::set($route);
                 $path = $route->path;
                 $view = $route->view;
-          
+
                 if ( !$view ) continue;
 
                 $custom = $route->custom
@@ -446,12 +450,27 @@ class RoutesMap
                     $result->imports[] = "import $view_placeholder_name from '$view_placeholder_path';";
                 }
 
-                $is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
-                $title = $route->title;
+                //$is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
+                //$title = $route->title;
+                $path = str_replace(["}/", "/{"], ["/", "/:"], $path);
+                $element_name = explode("/", $view);
+                $element_name = array_map('ucfirst', $element_name);
+                $element_name = join("", $element_name);
+                $element_name = explode(".", $element_name)[0];
+                $elements[] = "\tconst $element_name = lazy(() => import(`$view`));";
 
-                $result->items[] = "{title:'$title',path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
+                $routes[] = "\t\t\t<Route key='$element_name' path='$path' element={<$element_name />} />";
+               // $result->items[] = "{title:'$title',path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
             }
         }
+
+        $routes[] = "\t\t</>";
+        $routes[] = "\t)";
+        $routes[] = "}";
+
+        $result->items[] = join("\r", $elements);
+        $result->items[] = "\n";
+        $result->items[] = join("\r", $routes);
 
         return $result;
     }      
