@@ -160,6 +160,7 @@ class RoutesMap
             'backend' => [],
             'frontend' => [],
             'frontend_imports' => [],
+            'frontend_elements' => [],
             'module_apis' => []
         ];
 
@@ -183,6 +184,7 @@ class RoutesMap
             $response['backend'] = array_merge($response['backend'], $route_backend_map);
             $response['frontend'] = array_merge($response['frontend'], $route_frontend_map->items);
             $response['frontend_imports'] = array_merge($response['frontend_imports'], $route_frontend_map->imports);
+            $response['frontend_elements'] = array_merge($response['frontend_elements'], $route_frontend_map->elements);
         }
 
         if ( !empty($route_build_items_by_module)){
@@ -216,7 +218,14 @@ class RoutesMap
         $front[] = join("\r", $imports);
         $front[] = "\n";
         $front[] = 'export default function RouteMaps(){';
+        $front[] = join("\r", $buildMaps->frontend_elements);
+
+        $front[] = "\r\treturn (";
+        $front[] = "\t\t<>";
         $front[] = join("\r", $buildMaps->frontend);
+        $front[] = "\t\t</>";
+        $front[] = "\r\t)";
+        $front[] = "\n}";
         $front = join("\r", $front);
 
         // BACK
@@ -423,11 +432,14 @@ class RoutesMap
                 'import React, { lazy } from "react";',
                 'import {Route} from "react-router";'
             ],
-            'items' => []
+            'items' => [],
+            'elements' => []
         ]);
 
+        if ( empty($map) ) return $result;
+
         $elements = [];
-        $routes = ["\treturn (", "\t\t<>"];
+        $routes = [];
 
         foreach( $map as $index => $item ){
            
@@ -457,17 +469,28 @@ class RoutesMap
                 $element_name = array_map('ucfirst', $element_name);
                 $element_name = join("", $element_name);
                 $element_name = explode(".", $element_name)[0];
+                
                 $elements[] = "\tconst $element_name = lazy(() => import(`$view`));";
-
                 $routes[] = "\t\t\t<Route key='$element_name' path='$path' element={<$element_name />} />";
+
                // $result->items[] = "{title:'$title',path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
             }
         }
 
-        $routes[] = "\t\t</>";
-        $routes[] = "\t)";
-        $routes[] = "}";
 
+        $result->elements = $elements;
+        $result->items = $routes;
+
+        return $result;
+
+        if ( !empty($routes) ){
+            array_unshift($routes, "\treturn (", "\t\t<>");
+            $routes[] = "\t\t</>";
+            $routes[] = "\t)";
+        }
+
+        $routes[] = "}";
+     
         $result->items[] = join("\r", $elements);
         $result->items[] = "\n";
         $result->items[] = join("\r", $routes);
