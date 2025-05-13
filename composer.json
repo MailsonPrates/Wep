@@ -12,6 +12,9 @@
             "email": "mailsonprates@gmail.com"
         }
     ],
+    "require": {
+        "guzzlehttp/guzzle": "^7.5"
+    },
     "require-dev": {
         "pestphp/pest": "^1.23"
     },

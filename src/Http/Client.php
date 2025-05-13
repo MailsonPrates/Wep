@@ -2,9 +2,9 @@
 
 namespace App\Core\Http;
 
-use GuzzleHttp\Psr7\Request as GuzRequest;
+use GuzzleHttp\Client as GuzClient;
 
-class Request extends GuzRequest
+class Client extends GuzClient
 {
     public function __construct() {
         parent::__construct(...func_get_args());
