@@ -1,6 +1,6 @@
 {
     "name": "wep/framework",
-    "version": "1.0.13",
+    "version": "1.0.15",
     "autoload": {
         "psr-4": {
             "App\\Core\\": "src/"
