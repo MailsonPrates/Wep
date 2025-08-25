@@ -201,26 +201,24 @@ class Handler
      * @param object $query
      * @param string $query->type
      * @param string $query->string
-     * @param array $query->fields
+     * @param array $query->fields_list
      */
     private function execute($query)
     {
         /**
-         * @debug
+         * @debug only
          */
         if ( $this->is_debug ){
             $query->raw = $this::parseQueryRaw($query->string, $query->placeholders);
             return $query;
         }
 
-        return Response::success($query);
-
         $pdo = $this->pdo ?? null;
 
         if ( isset($query->error) ) return $query;
 
-        $fields = $query->fields ? (array) $query->fields : [];
-       
+        $fields = isset($query->placeholders) ? (array)$query->placeholders : [];
+
         return Executor::execute($pdo, $query->string, $fields, [
             "fetch" => $this->fetch_mode,
             "raw" => $this->raw

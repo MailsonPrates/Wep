@@ -9,7 +9,9 @@ class Executor
     public static function execute(\PDO $pdo, string $query, array $fields=[], $config=[])
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
-       
+
+        $debug = [];
+
         try {
 			
 			$stmt = $pdo->prepare($query);
@@ -21,9 +23,10 @@ class Executor
                 foreach( $fields as $key => &$value ){
                     $value = $value === NULL ? "" : $value;
                     $stmt->bindParam(":$key", $value);
+                    $debug[":$key"] = $value;
                 }
             }
-            
+
 			$result = $stmt->execute();
 
             $query_method = explode(" ", strtolower($query))[0];
@@ -39,8 +42,10 @@ class Executor
                 /**
                  * @todo refatorar
                  */
-                $fetch_mode_string = strtoupper($config["fetch"] ?? "assoc");
-                $fetch_mode = constant("PDO::FETCH_$fetch_mode_string");
+                $fetch_mode_string = isset($config["fetch"]) ? $config["fetch"] : null;
+                $fetch_mode_string = strtoupper($config["fetch"] ?: "assoc");
+
+                $fetch_mode = constant("PDO::FETCH_".$fetch_mode_string);
 
                 $fetch_methods = [
                     "OBJ" => "fetch",

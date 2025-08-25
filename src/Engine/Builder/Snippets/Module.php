@@ -57,14 +57,14 @@ class Module
         $module_namespace = APP_MODULES_NAMESPACE . join('\\', $name_parts);
         $options = $props['options'] ?? [];
 
-        /*echo json_encode([
+       /* echo json_encode([
             'name' => $name,
             'is_vendor' => $is_vendor,
             'module_name' => $module_name,
             'module_dir' => $module_dir,
             'module_namespace' => $module_namespace,
             'options' => $options
-        ]);*/
+        ]) . PHP_EOL;*/
 
         $module_type = $is_vendor ? 'vendor' : 'regular';
         $module_schema = self::$schemas[$module_type];
@@ -86,6 +86,8 @@ class Module
             }
         }
 
+        //var_dump($module_schema);
+
         foreach( $module_schema as $filename => $method ){
             $filename_parsed = str_replace('{module_name}', $module_name, $filename);
             $filename = $module_dir . '/' . $filename_parsed;
@@ -96,7 +98,8 @@ class Module
 
             $content = call_user_func_array([static::class, $method], [
                 [
-                    'module_name' => $module_name
+                    'module_name' => $module_name,
+                    'namespace' => $module_namespace
                 ]
             ]);
 
@@ -134,14 +137,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function regularModel($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             '<?php',
             ' ',
-            'namespace App\Modules\\'.$module_name.';',
+            'namespace '.$namespace.';',
             ' ',
             'use App\Core\Model;',
             ' ',
@@ -157,14 +166,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function regularApi($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             '<?php',
             ' ',
-            "namespace App\Modules\\".$module_name.";",
+            "namespace ".$namespace.";",
             ' ',
             'use App\Core\Controller;',
             ' ',
@@ -202,6 +217,10 @@ class Module
             "<?php",
             " ",
             "return [",
+            "    'url' => '',",
+            "    'headers' => [",
+            " ",
+            "    ],",
             "    'endpoints' => [",
             " ",
             "    ],",
@@ -215,14 +234,20 @@ class Module
         ]);
     }
 
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function vendorModel($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             "<?php",
             " ",
-            "namespace App\Modules\Vendor\\$module_name;",
+            "namespace $namespace;",
             " ",
             "use App\Core\Vendor;",
             " ",
@@ -237,15 +262,21 @@ class Module
             "}",
         ]);
     }
-
+    
+    /**
+     * @param array $props
+     * @param string $props->module_name
+     * @param string $props->namespace
+     */
     private static function vendorApi($props)
     {
-        $module_name = $props['module_name'];
+        $module_name = $props['module_name'] ?? "ModuleName";
+        $namespace = $props['namespace'] ?? "Namespace";
 
         return join("\r", [
             "<?php",
             " ",
-            "namespace App\Modules\Vendor\\$module_name;",
+            "namespace $namespace;",
             " ",
             "use App\Core\Controller;",
             " ",

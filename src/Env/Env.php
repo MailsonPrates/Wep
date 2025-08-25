@@ -5,6 +5,8 @@ namespace App\Core\Env;
 use App\Core\Env\AbstractProcessor;
 use App\Core\Env\BooleanProcessor;
 use App\Core\Env\QuoteProcessor;
+use App\Core\Response;
+use Exception;
 
 /**
  * @version v1.0.1
@@ -102,44 +104,107 @@ class Env
 
     /**
      * Atualiza valores de uma variavel
-     * @todo add opção para se nao existir, criar.
      * 
      * @param string $key
      * @param string $value
      */
     public function set($key, $value)
     {
+        try {
 
-        if (!is_readable($this->path)) return (object)[
-            "error" => true,
-            "code" => "file_not_readable",
-            "message" => sprintf('%s file is not readable', $this->path)
-        ];
+            /**
+             * Lê o arquivo
+             */
+            // Ler o conteúdo do arquivo original
+            if (!file_exists($this->path)) {
+                throw new Exception('Arquivo não encontrado:');
+            }
 
-        $content = file_get_contents($this->path);
-        $contentList = explode("\r\n", $content);
+            $fileHandle = fopen($this->path, 'rb');
+            if (!$fileHandle) {
+                throw new Exception('Erro ao abrir o arquivo para leitura');
+            }
 
-        foreach( $contentList as &$item ){
-           
-            $isSetLine = str_contains($item, "=");
+            if (!flock($fileHandle, LOCK_SH)) {
+                fclose($fileHandle);
+                throw new Exception('Não foi possível bloquear o arquivo para leitura.');
+            }
 
-            if ( !$isSetLine ) continue;
+            $content = fread($fileHandle, filesize($this->path));
+            flock($fileHandle, LOCK_UN);
+            fclose($fileHandle);
 
-            $itemParts = explode("=", $item);
-            $itemKey = $itemParts[0];
+            if ($content === false) {
+                throw new Exception('Erro ao ler o conteúdo do arquivo.');
+            }
 
-           // echo "$itemKey = $key <br>";
+            /**
+             * Atualiza conteudo
+             */
 
-            if ( $itemKey != $key ) continue;
+            $contentList = explode("\r\n", $content);
 
-            $item = "$key=$value";
+            foreach( $contentList as &$item ){
+                
+                $isSetLine = str_contains($item, "=");
+     
+                 if ( !$isSetLine ) continue;
+     
+                 $itemParts = explode("=", $item);
+                 $itemKey = $itemParts[0];
+     
+                 if ( $itemKey != $key ) continue;
+     
+                 $item = "$key=$value";
+     
+                 break;
+            }
+     
+            $newContent = join("\r\n", $contentList);
 
-            break;
+            /**
+             * Salva arquivo
+             */
+             // Salvar no arquivo temporário
+             $tempFilePath = $this->path . '.tmp';
+             $tempFileHandle = fopen($tempFilePath, 'wb');
+             if (!$tempFileHandle) {
+                 throw new Exception('Erro ao criar o arquivo temporário.');
+             }
+ 
+             if (!flock($tempFileHandle, LOCK_EX)) {
+                 fclose($tempFileHandle);
+                 unlink($tempFilePath);
+                 throw new Exception('Não foi possível bloquear o arquivo temporário.');
+             }
+ 
+             if (fwrite($tempFileHandle, $newContent) === false) {
+                 flock($tempFileHandle, LOCK_UN);
+                 fclose($tempFileHandle);
+                 unlink($tempFilePath);
+                 throw new Exception('Erro ao escrever no arquivo temporário.');
+             }
+ 
+             fflush($tempFileHandle);
+             flock($tempFileHandle, LOCK_UN);
+             fclose($tempFileHandle);
+ 
+             // Substituir o arquivo original
+             if (!rename($tempFilePath, $this->path)) {
+                 unlink($tempFilePath);
+                 throw new Exception('Erro ao substituir o arquivo original.');
+             }
+
+             /**
+              * Recarregar env
+              */
+              $this->load();
+
+              return Response::success();
+
+        } catch (\Throwable $th) {
+            return Response::error($th->getMessage() . ' ' . $this->path);
         }
-
-        $newContent = join("\r\n", $contentList);
-
-        file_put_contents($this->path, $newContent);
     }
 
     /**

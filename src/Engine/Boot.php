@@ -11,6 +11,7 @@ trait Boot
     private static $status = "off";
     private static $config = [];
     public static $data = [];
+    public static $env = null;
 
     /**
      * @param array $config
@@ -63,7 +64,8 @@ trait Boot
          * Debug only
          * @todo criar recurso para debug visual
          */
-        //return Response::json([]);
+        //return Response::json(Module::getConfigs());
+        //return Module::getConfigs();
 
         Route::execute();
     }
@@ -123,6 +125,7 @@ trait Boot
 
         // Dependentes do Env
         define("ENV", getenv("ENV"));
+        define('ENV_DEV', (ENV == 'DEV'));
         define("APP_URL", getenv("APP_URL"));
 
         // Core
@@ -147,5 +150,7 @@ trait Boot
 
         $env = new Env($path);
         $env->load();
+
+        self::$env = $env;
     }
 }

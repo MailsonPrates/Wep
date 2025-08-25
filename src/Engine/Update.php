@@ -88,13 +88,17 @@ class Update
      * Atualiza os arquivos de api dos módulos
      * localizados em storage/builds/apis/
      */
-    private static function moduleApis($moduleApis=[])
+    private static function moduleApis($moduleApis="")
     {
         $response = Obj::set([
             "error" => false
         ]);
 
+        $modules = $moduleApis ?? "";
+        file_put_contents(DIR_BUILD_MODULE_APIS . "/index.js", $modules);
 
+        return $response;
+      
         $module_api_file_to_delete = glob(DIR_BUILD_MODULE_APIS."/*");  
    
         foreach($module_api_file_to_delete as $file) { 
@@ -149,7 +153,7 @@ class Update
 
         $save = file_put_contents(CONFIGS_BUILD_FILENAME_FRONT, $configs_json);
 
-        if ( !$configs_json || !$save  ){
+        if ( !$configs_json || !$save ){
             $response->error = true;
             $response->data[] = "Erro ao atualizar o arquivo de configs";
         }

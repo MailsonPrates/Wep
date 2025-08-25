@@ -9,6 +9,8 @@ class Request {
 
 	use Methods;
 
+	private $debug = [];
+
 	private $url;
 
 	private $url_parameterized = null;
@@ -77,16 +79,16 @@ class Request {
 			$this->setUrl($options['url']);
 		}
 
-		if ( isset($options['query']) ){
-			$this->setQuery($options['query']);
-		}
-
 		if ( isset($options['params']) ){
 			$this->setParams($options['params']);
 		}
 
 		if ( isset($options['headers']) ){
 			$this->setHeaders($options['headers']);
+		}
+
+		if ( isset($options['query']) ){
+			$this->setQuery($options['query']);
 		}
 
 		if ( isset($options['max_attempts']) ){
@@ -123,8 +125,10 @@ class Request {
 		}
 	}
 
-	public function getOptions()
+	public function getOptions($prop=null)
 	{
+		if ( $prop && $this->{$prop} ) return $this->{$prop} ?? null;
+
 		return [
 			'url' => $this->url,
 			'url_parameterized' => $this->url_parameterized,
@@ -172,9 +176,14 @@ class Request {
 		$is_bulk = !$value;
 		$params = $is_bulk ? $key : [$key => $value];
 
+		//$this->debug[] = [$this->params, $params];
+
 		$this->params = array_merge($this->params, $params);
 
+		//$this->debug[] = $this->params;
+
 		$this->setUrlParams();
+
 		return $this;
 	}
 
@@ -216,6 +225,12 @@ class Request {
 
 		$this->headers[] = $headers;
 
+		return $this;
+	}
+
+	public function replaceHeaders($headers=[])
+	{
+		$this->headers = $headers;
 		return $this;
 	}
 
@@ -432,6 +447,7 @@ class Request {
 
 		foreach( $this->params as $key => $value ){
 			$this->url = str_replace("{{$key}}", $value, $this->url);
+			//$this->debug['url_'. $key] = $this->url;
 		}
 
 		return $this;
@@ -465,6 +481,9 @@ class Request {
 	 */
 	public function execute() 
 	{
+		$this->setUrlQuery();
+		$this->setUrlParams();
+
 		$validate = $this->validate();
 
 		if ( $validate->error ) {

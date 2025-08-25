@@ -110,7 +110,9 @@ class Select implements MethodInterface
                 $joins_query[] = "LEFT JOIN ".$table . $on_query_string;
             }
 
-            $query[] = join(" ", $joins_query);
+            $query_string = join(" ", $joins_query);
+
+            $query[] = $query_string;
 
         }
 
@@ -126,7 +128,7 @@ class Select implements MethodInterface
             $response->conditions_query = $conditions_query;
 
             if ( $has_joins ){
-                $query[] = "AND";
+                //$query[] = "AND";
             }
 
             $query[] = $conditions_query->string;

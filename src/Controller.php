@@ -14,7 +14,7 @@ trait Controller
 
         if ( $is_vendor_module ) return $this->handleVendorModule($route_data, $request);
 
-        $route_method_to_call = $route_data->api;
+        $route_method_to_call = $route_data->method;
 
         $is_default_method = in_array($route_method_to_call, ['get', 'create', 'delete', 'update']);
         $is_invalid_custom_method_call = !$is_default_method && !method_exists($this, $route_method_to_call);
@@ -62,7 +62,7 @@ trait Controller
         
         try {
 
-            $method = $routeData->api;
+            $method = $routeData->method;
             $resource = $routeData->resource;
             $module_class = $routeData->namespace . '\\' . $routeData->module;
         
