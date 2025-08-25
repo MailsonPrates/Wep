@@ -64,7 +64,8 @@ trait Boot
          * Debug only
          * @todo criar recurso para debug visual
          */
-        //return Response::json(gettype(self::data()));
+        //return Response::json(Module::getConfigs());
+        //return Module::getConfigs();
 
         Route::execute();
     }

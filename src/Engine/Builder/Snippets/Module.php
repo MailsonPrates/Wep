@@ -57,14 +57,14 @@ class Module
         $module_namespace = APP_MODULES_NAMESPACE . join('\\', $name_parts);
         $options = $props['options'] ?? [];
 
-        /*echo json_encode([
+       /* echo json_encode([
             'name' => $name,
             'is_vendor' => $is_vendor,
             'module_name' => $module_name,
             'module_dir' => $module_dir,
             'module_namespace' => $module_namespace,
             'options' => $options
-        ]);*/
+        ]) . PHP_EOL;*/
 
         $module_type = $is_vendor ? 'vendor' : 'regular';
         $module_schema = self::$schemas[$module_type];
@@ -85,6 +85,8 @@ class Module
                 }
             }
         }
+
+        //var_dump($module_schema);
 
         foreach( $module_schema as $filename => $method ){
             $filename_parsed = str_replace('{module_name}', $module_name, $filename);

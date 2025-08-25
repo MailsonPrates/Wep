@@ -44,7 +44,7 @@ class RoutesMap
         $build_maps = self::handleBuildMaps($modules_routes);
 
         if ( $raw ) return $build_maps;
-        
+
         return self::buildFileContents($build_maps);
     }
 
@@ -56,14 +56,37 @@ class RoutesMap
         /**
          * @todo usar Module::getConfigs()
          */
-        $modules_config_filenames = glob(DIR_MODULES . "/*/config/module.php");
+       // $modules_config_filenames = glob(DIR_MODULES . "/**/**/config/module.php");
+        $modules_config_list = Module::getConfigs('regular');
 
-        foreach($modules_config_filenames as $filename){
+        //echo json_encode($modules_config_list);
+
+        foreach($modules_config_list as $module_config){
+
+            $active = $module_config['active'] ?? true;
+            $namespace = $module_config['namespace'];
+            $name = $module_config['module_name'] ?? "";
+
+            //echo $namespace . PHP_EOL;
+            
+            if ( $active === false ) continue;
+
+            $module_routes = $module_config['routes'] ?? [];
+            $module_routes['namespace'] = $module_routes['namespace'] ?? $namespace;
+            $module_routes['module_name'] = $name;
+            $module_routes['groups'] = $module_routes['groups'] ?? [];
+
+            $routes_list[] = $module_routes;
+        }
+
+       /* foreach($modules_config_filenames as $filename){
             
             $parts = explode("Modules/", $filename);
             $item = $parts[1] ?? "";
             $module_name = explode("/", $item)[0] ?? "";
             $module_namespace = APP_MODULES_NAMESPACE . $module_name;
+
+            echo $module_namespace . PHP_EOL; 
 
             $module_config = include_once($filename) ?? [];
 
@@ -77,7 +100,7 @@ class RoutesMap
             $module_routes['groups'] = $module_routes['groups'] ?? [];
 
             $routes_list[] = $module_routes;
-        }
+        }*/
 
         // Pega Vendors
         $vendor_routes_list = Vendor::buildRoutes();
@@ -261,8 +284,11 @@ class RoutesMap
         $groups = $route->groups ?? [];
         $namespace = $route->namespace;
         $namespace_parts = explode("\\", $namespace);
-        $module_name = end($namespace_parts);
+        $module_name_parts = array_slice($namespace_parts, 2);
+        $module_name_last = end($module_name_parts);
+        $module_name = count($module_name_parts) > 1 ? join("/", $module_name_parts) : $module_name_parts[0];
         $is_vendor_module = in_array("Vendor", $namespace_parts);
+        $module_name = $is_vendor_module ? $module_name_last : $module_name;
         $route_middlewares = $route->use_middlewares ?? [];
 
         $parent_view = $route->view ?? Obj::set();
@@ -281,12 +307,14 @@ class RoutesMap
             $path = str_replace('//', '/', $path);
             $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
 
+            $item->main_path = $path;
+
             $type = self::getType($item);
             
             $title = $item->title ?? '';
             $view = self::getView($item, $module_name, $namespace);
 
-            $controller = self::getController($item, $namespace, $module_name);
+            $controller = self::getController($item, $namespace, $module_name_last);
 
             $custom = $item->custom ?? [];
 
@@ -350,7 +378,7 @@ class RoutesMap
                 $path = $route->path;
                 $controller = $route->controller;
                 $middlewares = $route->middlewares ?? [];
-    
+
                 $define = "Route::$method('$path', '$controller')";
 
                 if ( !empty($middlewares) ){
@@ -372,6 +400,10 @@ class RoutesMap
         $alert = self::getEditWarning();
 
         $result = [];
+        $module_methods = [];
+        $module_declarations = [];
+
+       //echo json_encode($routesByModules);
 
         foreach( $routesByModules as $moduleName => $items ){
 
@@ -407,9 +439,15 @@ class RoutesMap
             }
 
             $module_routes = json_encode($module_routes);
+            $module_name = str_replace("\\", "", $module_name);
             $module_method = $module_name . "Api";
 
             $module_filename = Str::camelToKebabCase($module_name) . '.js';
+
+            $module_declarations[] = 'const '.$module_method." = apiFactory({routes:$module_routes});";
+            $module_methods[] = $module_method;
+
+            continue;
 
             $result[$module_name] = [
                 'content' => join("\r", [
@@ -422,7 +460,15 @@ class RoutesMap
             ];
         }
 
-        return $result;
+        //return $result;
+        return join("\r", [
+            $alert,
+            'import {apiFactory} from "core";',
+            "\n",
+            join("\r", $module_declarations),
+            "\n",
+            'export {'.join(", ", $module_methods) . '};'
+        ]);
     }    
 
     private static function buildFrontendMap($map)
@@ -465,13 +511,19 @@ class RoutesMap
                 //$is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
                 //$title = $route->title;
                 $path = str_replace(["}/", "/{"], ["/", "/:"], $path);
+              
+                $view = str_replace(["}", "{"], ["", ""], $view);
+                $view = str_replace("//", "/", $view);
                 $element_name = explode("/", $view);
                 $element_name = array_map('ucfirst', $element_name);
                 $element_name = join("", $element_name);
                 $element_name = explode(".", $element_name)[0];
-                
+                $element_name = str_replace("\\", "", $element_name);
+              
                 $elements[] = "\tconst $element_name = lazy(() => import(`$view`));";
                 $routes[] = "\t\t\t<Route key='$element_name' path='$path' element={<$element_name />} />";
+
+                //echo $element_name. PHP_EOL;
 
                // $result->items[] = "{title:'$title',path:'$path',custom:$custom,handler:{component:{main:()=>import(`$view`),placeholder:". $view_placeholder_name."},revalidate:".($is_custom_view_template ? 'true' : 'false')."}}";
             }
@@ -561,9 +613,13 @@ class RoutesMap
 
         if ( isset($route->method) ) return $response;
 
+       //echo $module_name . PHP_EOL;
+       //echo json_encode($route) . PHP_EOL;
+
         $view = $route->view ?? null;
         $modules_path = '/src/' . explode("/src/", DIR_MODULES)[1];
         $path = $modules_path . '/' . $module_name . '/view';
+        //$path = str_replace("//", "/", $path);
 
         $response->main = $path . '/index.js';
 
@@ -587,6 +643,8 @@ class RoutesMap
                 $response->template = self::getViewTemplate($view->template, $module_namespace);
             }
         }
+
+       // echo json_encode($response) . PHP_EOL;
         
         return $response;
     }

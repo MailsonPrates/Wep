@@ -1,6 +1,6 @@
 {
     "name": "wep/framework",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "autoload": {
         "psr-4": {
             "App\\Core\\": "src/"
@@ -12,9 +12,6 @@
             "email": "mailsonprates@gmail.com"
         }
     ],
-    "require": {
-        "guzzlehttp/guzzle": "^7.5"
-    },
     "require-dev": {
         "pestphp/pest": "^1.23"
     },

@@ -4,6 +4,7 @@ namespace App\Core\Engine\Builder\Vendor;
 
 use App\Core\Str;
 use App\Core\Engine\Builder\Vendor\Endpoint;
+use App\Core\Engine\Module;
 
 /**
  * Classe responsável por montar dados dos 
@@ -73,30 +74,39 @@ class Vendor
          */
 
 
-        $modules_config_filenames = glob(DIR_MODULES . "/Vendor/*/config/module.php");
+        //$modules_config_filenames = glob(DIR_MODULES . "/Vendor/*/config/module.php");
+        $modules_config = Module::getConfigs('vendor');
 
-        foreach($modules_config_filenames as $filename){
+        // json_encode($modules_config);
+
+        foreach($modules_config as $module_config){
             
-            $parts = explode("Modules/Vendor/", $filename);
+            /*$parts = explode("Modules/Vendor/", $filename);
             $item = $parts[1] ?? "";
             $module_name = explode("/", $item)[0] ?? "";
             $module_namespace = APP_MODULES_NAMESPACE . 'Vendor\\' . $module_name;
 
-            $module_config = include_once($filename) ?? [];
+            $module_config = include_once($filename) ?? [];*/
+
+            //echo $module_config['module_name'] . PHP_EOL;
 
             $active = $module_config['active'] ?? true;
 
             if ( $active === false ) continue;
 
+            $namespace = $module_config['namespace'];
+           
             $module_config['routes'] = $module_config['routes'] ?? [];
-            $module_config['module_name'] = $module_name;
+            $module_config['module_name'] = $module_config['module_name'] ?? "";
 
             $module_config['routes'] = array_merge([
-                'path' => '/' . Str::camelToKebabCase($module_name),
-                'namespace' => $module_namespace,
-                'module_name' => $module_name,
+                'path' => '/' . Str::camelToKebabCase($module_config['module_name']),
+                'namespace' => $namespace,
+                'module_name' => $module_config['module_name'],
                 'groups' => []
             ], $module_config['routes']);
+
+           // echo $namespace . PHP_EOL;
 
             self::$modules_config[] = $module_config;
         }
