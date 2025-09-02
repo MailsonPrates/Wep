@@ -67,7 +67,7 @@ class RoutesMap
             $namespace = $module_config['namespace'];
             $name = $module_config['module_name'] ?? "";
 
-            //echo $namespace . PHP_EOL;
+            //echo ">>>> " . $namespace . PHP_EOL;
             
             if ( $active === false ) continue;
 
@@ -192,7 +192,13 @@ class RoutesMap
         foreach( $routes as $route ){
 
             $route_build = self::buildMap($route);
+
             $route_module_name = $route['module_name'];
+            //$has_vendor = str_contains($route['namespace'], "Vendor");
+            //$namespace_parts = explode($has_vendor ? "Vendor\\" : "Modules\\", $route['namespace']);
+            //$route_module_name = str_replace("\\", "", $namespace_parts[1]);
+
+            //echo $route_module_name . PHP_EOL;
 
             if ( !isset($route_build_items_by_module[$route_module_name]) ){
                 $route_build_items_by_module[$route_module_name] = [];
@@ -329,6 +335,7 @@ class RoutesMap
 
             $response_item = [
                 'module' => $module_name,
+                'module_last' => $module_name_last,
                 'path' => $path,
                 'title' => $title,
                 'type' => $type,
@@ -403,7 +410,8 @@ class RoutesMap
         $module_methods = [];
         $module_declarations = [];
 
-       //echo json_encode($routesByModules);
+       //echo json_encode($routesByModules) . PHP_EOL;
+       //echo "----------------" . PHP_EOL;
 
         foreach( $routesByModules as $moduleName => $items ){
 
@@ -613,7 +621,9 @@ class RoutesMap
 
         if ( isset($route->method) ) return $response;
 
-       //echo $module_name . PHP_EOL;
+       //echo 'module_name: ' . $module_name . PHP_EOL;
+       //echo 'module_namespace: ' . $module_namespace . PHP_EOL;
+       //echo '----------------------' . PHP_EOL;
        //echo json_encode($route) . PHP_EOL;
 
         $view = $route->view ?? null;

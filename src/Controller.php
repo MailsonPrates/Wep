@@ -2,8 +2,9 @@
 
 namespace App\Core;
 
+use App\Core\Response;
 use App\Core\Router\Http\Request;
-use App\Core\Router\Http\Response;
+use Exception;
 
 trait Controller
 {
@@ -25,11 +26,11 @@ trait Controller
             return $response->json('Método não existe ou não permitido', false);
         }
 
-        $module_class =  $route_data->namespace . '\\' . $route_data->module;
+        $module_class =  $route_data->namespace . '\\' . $route_data->module_last;
 
-        if ( !class_exists($module_class) ){
-            $module_class = null;
-        }
+        //if ( !class_exists($module_class) ){
+          //  $module_class = null;
+        //}
 
         if ( $is_default_method ) return $this->handleDefaultMethods(
             $route_method_to_call, 
@@ -41,10 +42,12 @@ trait Controller
         return $this->{$route_method_to_call}($request, $response, $module_class);
     }
 
-    protected function handleDefaultMethods($method, $request, $response, $module)
+    protected function handleDefaultMethods($method, $request, $response, $module_class)
     {
+        if ( !class_exists($module_class) ) return $response->json(Response::error("Class não existe: ". $module_class));
+
         $data = $request->data();
-        $method_to_call = $module . "::$method";
+        $method_to_call = $module_class . "::$method";
 
         try {
             $result = $method_to_call($data);

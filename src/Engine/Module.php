@@ -44,7 +44,7 @@ class Module
 
         $is_vendor = str_contains($module_name, '.');
 
-        echo $module_name . PHP_EOL; 
+        //echo $module_name . PHP_EOL; 
 
         if ( $is_vendor ){
             $name_parts = explode('.', $module_name); 
@@ -110,21 +110,23 @@ class Module
             $filename_replaced = str_replace("/", "\\", $filename);
             $parts = explode("Modules\\".($is_vendor ? "Vendor\\" : ""), $filename_replaced);
             $item = $parts[1] ?? "";
-            $module_name = explode("\\config", $item)[0] ?? "";
-            $module_namespace = APP_MODULES_NAMESPACE . ($is_vendor ? 'Vendor\\' : '') . $module_name;
+            $module_path = explode("\\config", $item)[0] ?? "";
+            $module_name_parts = explode("\\", $module_path);
+            $module_name = end($module_name_parts);
+            $module_namespace = APP_MODULES_NAMESPACE . ($is_vendor ? 'Vendor\\' : '') . $module_path;
 
             $config = include($filename) ?? [];
 
             //echo !$is_vendor_filter ? '' : $filename . PHP_EOL;
-           // $break = '<br>';
-           // echo "is_vendor: " . $is_vendor . $break;
-           // echo "filename: " . $filename . $break;
-           // echo "fullnamespace: " . APP_MODULES_NAMESPACE . $module_name . $break;
-           // echo "parts: " . json_encode($parts) . $break;
-           // echo "item: " . json_encode($item) . $break;
-           // echo "module_name: " . $module_name . $break;
-           // echo "namespace: " . $module_namespace . $break;
-           // echo "-----------" . $break;
+            //$break = PHP_EOL;
+            //echo "is_vendor: " . $is_vendor . $break;
+            //echo "filename: " . $filename . $break;
+            //echo "fullnamespace: " . APP_MODULES_NAMESPACE . $module_name . $break;
+            //echo "parts: " . json_encode($parts) . $break;
+            //echo "item: " . json_encode($item) . $break;
+            //echo "module_name: " . $module_name . $break;
+            //echo "namespace: " . $module_namespace . $break;
+            //echo "-----------" . $break;
 
             $config['namespace'] = $config['namespace'] ?? $module_namespace;
             $config['module_name'] = $module_name;
