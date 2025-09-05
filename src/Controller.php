@@ -28,10 +28,6 @@ trait Controller
 
         $module_class =  $route_data->namespace . '\\' . $route_data->module_last;
 
-        //if ( !class_exists($module_class) ){
-          //  $module_class = null;
-        //}
-
         if ( $is_default_method ) return $this->handleDefaultMethods(
             $route_method_to_call, 
             $request,
@@ -46,10 +42,20 @@ trait Controller
     {
         if ( !class_exists($module_class) ) return $response->json(Response::error("Class não existe: ". $module_class));
 
-        $data = $request->data();
-        $method_to_call = $module_class . "::$method";
-
         try {
+
+            // Verifica se método existe no ModuleApi
+            // para casos de substituição do método default
+            $method_exist_in_module_api = method_exists($this, $method);
+
+            if ( $method_exist_in_module_api ){
+                // Executa método substituto
+                return call_user_func_array([$this, $method], [$request, $response]);
+            }
+
+            $data = $request->data();
+            $method_to_call = $module_class . "::$method";
+
             $result = $method_to_call($data);
             return $response->json($result);
 
