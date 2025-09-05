@@ -2,6 +2,8 @@
 
 namespace App\Core;
 
+use App\Core\Str;
+
 class Image {
 	private $file;
 	private $image;
@@ -354,7 +356,7 @@ class Image {
 		$extension = pathinfo($filename, PATHINFO_EXTENSION);
 
 		$image_old = $filename;
-		$image_new = '/cache' . utf8_substr($filename, 0, utf8_strrpos($filename, '.')) . '-' . $width . 'x' . $height . '.' . $extension;
+		$image_new = '/cache' . Str::substr($filename, 0, Str::strrpos($filename, '.')) . '-' . $width . 'x' . $height . '.' . $extension;
 
 		if (!is_file($dir_image . $image_new) || (filemtime($dir_image . $image_old) > filemtime($dir_image . $image_new))) {
 			list($width_orig, $height_orig, $image_type) = getimagesize($dir_image . $image_old);
