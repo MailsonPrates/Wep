@@ -54,6 +54,7 @@ class RoutesMap
             $module_routes = $module_config['routes'] ?? [];
             $module_routes['namespace'] = $module_routes['namespace'] ?? $namespace;
             $module_routes['module_name'] = $name;
+            $module_routes['module_title'] = $module_config['title'] ?? $module_config['label'] ?? "";
             $module_routes['groups'] = $module_routes['groups'] ?? [];
 
             $routes_list[] = $module_routes;
@@ -297,6 +298,7 @@ class RoutesMap
 
             $response_item = [
                 'module' => $module_name,
+                'module_title' => $route->module_title ?: $module_name_last,
                 'module_last' => $module_name_last,
                 'path' => $path,
                 'title' => $title,
