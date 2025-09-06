@@ -276,8 +276,18 @@ class RoutesMap
             $path = str_replace('//', '/', $path);
             $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
 
-            if ( in_array($path, ['/api/get/', '/api/create/', '/api/update/', '/api/delete/']) ){
-                $path = join("/", ["", str_replace("-", "/", Str::camelToKebabCase($module_name)), "api", $api]);
+            if ( str_starts_with($path, "/api") ){
+
+                if ( in_array($path, ['/api/get/', '/api/create/', '/api/update/', '/api/delete/']) ){
+                    $path = '/' . str_replace("-", "/", Str::camelToKebabCase($module_name)) . $path;
+                
+                } else {
+                    // Adiciona "/api" antes do ultimos items
+                    $path_parts = explode("/", $item->path);
+                    $offset = count($path_parts) - 1;
+                    array_splice($path_parts, $offset, 0, "api");
+                    $path = join("/", $path_parts);
+                }
             }
 
             $item->main_path = $path;
@@ -301,6 +311,7 @@ class RoutesMap
             }
 
             $response_item = [
+                'aaaa' => [$route, $item],
                 'module' => $module_name,
                 'module_title' => $route->module_title ?: $module_name_last,
                 'module_last' => $module_name_last,
