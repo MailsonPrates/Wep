@@ -20,20 +20,8 @@ class RoutesMap
         'put'    => 'PUT' 
     ];
 
-    private static $app_custom_build_actions = [];
-    
     public static function build($raw=false)
     {
-        /**
-         * Inicializa App custom build actions (se houver)
-         */
-        $app_custom_build_actions_file = DIR_CONFIG . "/build.php";
-
-        if ( file_exists($app_custom_build_actions_file) ){
-            self::$app_custom_build_actions = include_once($app_custom_build_actions_file);
-        }
-        
-
         $modules_routes = self::getModulesRoutes();
 
         /**
@@ -53,13 +41,7 @@ class RoutesMap
         $routes_list = [];
         $default_apis = ['get', 'create', 'update', 'delete'];
 
-        /**
-         * @todo usar Module::getConfigs()
-         */
-       // $modules_config_filenames = glob(DIR_MODULES . "/**/**/config/module.php");
         $modules_config_list = Module::getConfigs('regular');
-
-        //echo json_encode($modules_config_list);
 
         foreach($modules_config_list as $module_config){
 
@@ -67,8 +49,6 @@ class RoutesMap
             $namespace = $module_config['namespace'];
             $name = $module_config['module_name'] ?? "";
 
-            //echo ">>>> " . $namespace . PHP_EOL;
-            
             if ( $active === false ) continue;
 
             $module_routes = $module_config['routes'] ?? [];
@@ -79,34 +59,16 @@ class RoutesMap
             $routes_list[] = $module_routes;
         }
 
-       /* foreach($modules_config_filenames as $filename){
-            
-            $parts = explode("Modules/", $filename);
-            $item = $parts[1] ?? "";
-            $module_name = explode("/", $item)[0] ?? "";
-            $module_namespace = APP_MODULES_NAMESPACE . $module_name;
+        // Executa Hooks: "before_build
 
-            echo $module_namespace . PHP_EOL; 
 
-            $module_config = include_once($filename) ?? [];
-
-            $active = $module_config['active'] ?? true;
-            
-            if ( $active === false ) continue;
-
-            $module_routes = $module_config['routes'] ?? [];
-            $module_routes['namespace'] = $module_routes['namespace'] ?? $module_namespace;
-            $module_routes['module_name'] = $module_name;
-            $module_routes['groups'] = $module_routes['groups'] ?? [];
-
-            $routes_list[] = $module_routes;
-        }*/
+        //echo json_encode($modules_config_list) . PHP_EOL;
+        //echo "--------------------------" . PHP_EOL;
+        //echo ''.PHP_EOL;
 
         // Pega Vendors
         $vendor_routes_list = Vendor::buildRoutes();
 
-        //echo json_encode($vendor_routes_list) . PHP_EOL;
-        //echo "------" . PHP_EOL;
 
         $routes_list = array_merge($routes_list, $vendor_routes_list);
 
@@ -354,18 +316,19 @@ class RoutesMap
             ];
 
             /**
-             * Executa App Custom Build Action: each_route
+             * Executa Hook each_route
              */
-            $each_route_action = self::$app_custom_build_actions['each_route'] ?? false;
 
-            if ( $each_route_action && is_callable($each_route_action) ){
-                $response_item = $each_route_action($response_item, [
-                    'path' => $path,
-                    'type' => $type,
-                    'raw' => $item,
-                    'module' => $route
-                ]) ?: $response_item;
-            }
+            $response_item = BuilderHooks::eachRoute($response_item, [
+                'path' => $path,
+                'type' => $type,
+                'raw' => $item,
+                'module' => $route
+            ]);
+
+            //echo json_encode($response_item) . PHP_EOL;
+            //echo "--------------" . PHP_EOL;
+            //echo "".PHP_EOL;
 
             $response[$path][$type] = $response_item;
         }
@@ -505,7 +468,7 @@ class RoutesMap
                 if ( !$view ) continue;
 
                 $custom = $route->custom
-                    ? json_encode( $route->custom)
+                    ? json_encode($route->custom)
                     : '{}';
 
                 $view_placeholder = $route->view_placeholder ?? Obj::set();
