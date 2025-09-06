@@ -277,7 +277,7 @@ class RoutesMap
             $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
 
             if ( in_array($path, ['/api/get/', '/api/create/', '/api/update/', '/api/delete/']) ){
-                $path = join("/", ["/api", str_replace("-", "/", Str::camelToKebabCase($module_name)), $api]);
+                $path = join("/", ["", str_replace("-", "/", Str::camelToKebabCase($module_name)), "api", $api]);
             }
 
             $item->main_path = $path;
