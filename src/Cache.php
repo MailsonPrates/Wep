@@ -62,7 +62,7 @@ class Cache
     {
 		self::delete($key);
 
-        $expire = $expire ?: self::$expire;
+        $expire = $expire ?? self::$expire;
 
 		$file = DIR_CACHE . '/cache.' . basename($key) . '.' . ($expire === false ? 'no_expire' : (time() + $expire));
 

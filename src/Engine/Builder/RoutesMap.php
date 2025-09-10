@@ -311,7 +311,6 @@ class RoutesMap
             }
 
             $response_item = [
-                'aaaa' => [$route, $item],
                 'module' => $module_name,
                 'module_title' => $route->module_title ?: $module_name_last,
                 'module_last' => $module_name_last,
