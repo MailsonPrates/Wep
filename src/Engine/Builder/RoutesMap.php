@@ -311,6 +311,7 @@ class RoutesMap
             }
 
             $response_item = [
+                'aaaa' => [$route, $item],
                 'module' => $module_name,
                 'module_title' => $route->module_title ?: $module_name_last,
                 'module_last' => $module_name_last,
@@ -620,6 +621,14 @@ class RoutesMap
                 $view = Obj::set([
                     'main' => $view
                 ]);
+            }
+
+            if ( str_starts_with($view->main, "Modules/") ){
+                $path = '/src/';
+            }
+
+            if ( str_starts_with($view->main, "src/") ){
+                $path = '';
             }
 
             $has_extension = str_contains($view->main, ".js");
