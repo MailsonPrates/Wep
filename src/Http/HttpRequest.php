@@ -5,7 +5,7 @@ namespace App\Core\Http;
 use App\Core\Http\Methods;
 use App\Core\Response;
 
-class Request {
+class HttpRequest {
 
 	use Methods;
 

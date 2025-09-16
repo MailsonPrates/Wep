@@ -3,12 +3,12 @@
 namespace App\Core;
 
 use App\Core\Response;
-use App\Core\Router\Http\Request;
+use App\Core\Router\Http\RouterHttpRequest;
 use Exception;
 
 trait Controller
 {
-    public function moduleApiControllerHandle(Request $request)
+    public function moduleApiControllerHandle(RouterHttpRequest $request)
     {
         $route_data = $request->routeMapData();
         $is_vendor_module = $route_data->vendor;
@@ -65,7 +65,7 @@ trait Controller
         }
     }
 
-    protected function handleVendorModule($routeData, $request)
+    protected function handleVendorModule($routeData, RouterHttpRequest $request)
     {
         $response = new Response();
         

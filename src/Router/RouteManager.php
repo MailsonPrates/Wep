@@ -2,7 +2,7 @@
 
 namespace App\Core\Router;
 
-use App\Core\Router\Http\Request;
+use App\Core\Router\Http\RouterHttpRequest;
 use App\Core\Router\Traits\RouteManagerUtils;
 use App\Core\Router\Middlewares\MiddlewareCollection;
 
@@ -60,7 +60,7 @@ class RouteManager
         $this->originalRoute = $uri;
         $this->separator = $separator;
 
-        $this->request = new Request(
+        $this->request = new RouterHttpRequest(
             $this->fullUrl,
             $this->route,
             $this->foundParameters(true)
@@ -345,9 +345,9 @@ class RouteManager
     /**
      * Get the request route.
      * 
-     * @return \App\Core\Router\Http\Request
+     * @return \App\Core\Router\Http\RouterHttpRequest
      */
-    public function request(): Request
+    public function request(): RouterHttpRequest
     {
         return $this->request;
     }

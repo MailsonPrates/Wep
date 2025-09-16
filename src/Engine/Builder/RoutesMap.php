@@ -310,10 +310,12 @@ class RoutesMap
                 $response[$path] = [];
             }
 
+            $module_title = $route->module_title ?? "";
+            $module_title = $module_title ?: $module_name_last;
+
             $response_item = [
-                'aaaa' => [$route, $item],
                 'module' => $module_name,
-                'module_title' => $route->module_title ?: $module_name_last,
+                'module_title' => $module_title,
                 'module_last' => $module_name_last,
                 'path' => $path,
                 'title' => $title,
@@ -386,7 +388,6 @@ class RoutesMap
     {
         $alert = self::getEditWarning();
 
-        $result = [];
         $module_methods = [];
         $module_declarations = [];
 
@@ -397,6 +398,7 @@ class RoutesMap
 
             $module_name = $moduleName;
             $module_routes = [];
+            $module_vendor_routes = [];
 
             foreach( $items as $methods ){
                 
@@ -415,7 +417,24 @@ class RoutesMap
                         $resource = $route->resource ?? null;
                         $custom = $route->custom ?? [];
     
-                        $module_routes[] = [
+                        if ( $resource ){
+
+                            if ( !isset($module_vendor_routes[$resource]) ){
+                                $module_vendor_routes[$resource] = [];
+                            }
+
+                            $module_vendor_routes[$resource][$method] = [
+                                'type' => $type,
+                                'method' => $method,
+                                'path' => $path,
+                                'resource' => $resource,
+                                'custom' => $custom
+                            ];
+
+                            continue;
+                        }
+
+                        $module_routes[$method] = [
                             'type' => $type,
                             'method' => $method,
                             'path' => $path,
@@ -426,32 +445,22 @@ class RoutesMap
                 }
             }
 
-            $module_routes = json_encode($module_routes);
+            $module_routes = empty($module_vendor_routes) ? $module_routes : $module_vendor_routes;
+
+            if ( empty($module_routes) ) continue;
+
+            $module_routes = json_encode((object)$module_routes);
             $module_name = str_replace("\\", "", $module_name);
             $module_method = $module_name . "Api";
 
-            $module_filename = Str::camelToKebabCase($module_name) . '.js';
-
-            $module_declarations[] = 'const '.$module_method." = apiFactory({routes:$module_routes});";
+            $module_declarations[] = 'const '.$module_method." = App.apiFactory($module_routes);";
             $module_methods[] = $module_method;
-
-            continue;
-
-            $result[$module_name] = [
-                'content' => join("\r", [
-                    $alert,
-                    'import {apiFactory} from "core";',
-                    'const '.$module_method." = apiFactory({routes:$module_routes});",
-                    'export default '.$module_method . ';'
-                ]),
-                'filename' => $module_filename
-            ];
         }
 
         //return $result;
         return join("\r", [
             $alert,
-            'import {apiFactory} from "core";',
+            'import App from "app";',
             "\n",
             join("\r", $module_declarations),
             "\n",
