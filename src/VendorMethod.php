@@ -4,7 +4,7 @@ namespace App\Core;
 
 use App\Core\Engine\Builder\Vendor\Endpoint;
 use Exception;
-use App\Core\Http\Request;
+use App\Core\Http\HttpRequest;
 
 class VendorMethod
 {
@@ -52,13 +52,21 @@ class VendorMethod
         $headers = $method_data['headers'] ?? [];
         $hooks = $method_data['hooks'] ?? [];
 
-        return $this->executeMethod([
+        $props = [
             'headers' => Endpoint::getParsedHeaders($headers),
             'hooks' => $hooks,
             'url' => Endpoint::parseEnvVariables($method_data['url']),
             'type' => $method_data['type'],
             'arguments' => $arguments[0] ?? []
-        ]);
+        ];
+
+        if ( $method_data['debug'] ) return [
+            'method_data' => $method_data,
+            'request_props' => $props,
+            'method_name' => $methodName
+        ];
+
+        return $this->executeMethod($props);
     }
 
     protected function executeMethod($config)
@@ -74,7 +82,7 @@ class VendorMethod
             'params' => $arguments['params'] ?? []
         ];
 
-        $request = new Request($request_props);
+        $request = new HttpRequest($request_props);
 
         $hooks = $config['hooks'];
 

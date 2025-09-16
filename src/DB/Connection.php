@@ -35,7 +35,7 @@ class Connection extends Singleton
                 \PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES ".$this->charset
             ));
         } catch(\PDOException $e) {
-            echo Response::json("error", $e->getMessage());
+            throw $e;
         }
         return $this->conn;
     }

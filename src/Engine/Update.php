@@ -3,6 +3,7 @@
 namespace App\Core\Engine;
 
 use App\Core\Core;
+use App\Core\Engine\Builder\BuilderHooks;
 use App\Core\Engine\Builder\Warning;
 use App\Core\Engine\Builder\RoutesMap;
 use App\Core\Engine\Builder\Vendor\Vendor;
@@ -16,6 +17,9 @@ class Update
 {
     public static function handle()
     {
+        BuilderHooks::reset();
+        BuilderHooks::beforeBuild();
+
         $response = Obj::set([
            'error' => false,
            'message' => "App atualizado \\0/"
@@ -36,6 +40,8 @@ class Update
         $custom_sets_update = self::customSets();
 
         if ( $custom_sets_update->error ) return $custom_sets_update;
+
+        BuilderHooks::afterBuild();
         
         return $response;
     }

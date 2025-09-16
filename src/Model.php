@@ -10,14 +10,18 @@ trait Model
     {
         if ( !self::$table ){
 
-            $module_namespace_parts = explode('\\', static::class);
-            $module_name = end($module_namespace_parts);
+            $module_namespace_parts = explode('Modules\\', static::class);
+            $module_path = explode('\\', $module_namespace_parts[1]);
+            array_pop($module_path);
+            
+            $module_name = join("\\", $module_path);
+            $module_name = str_replace("\\", "/", $module_name);
             $module_config = Core::config('module', $module_name);
             $module_config_db = $module_config->db ?? [];
 
             $module_table_name = $module_config->table ?? $module_config_db['table'] ?? null;
 
-            if ( !$module_table_name ) throw new \Exception("Nome da tabela não definida nas configurações do módulo: $module_name");
+            if ( !$module_table_name ) throw new \Exception("Nome da tabela não definida nas configurações do módulo: ". $module_name);
 
             // Repassa props do config do módulo importantes para o db
             $module_config_db['debug'] = $module_config->debug ?? false;

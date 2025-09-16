@@ -2,9 +2,9 @@
 
 namespace App\Core\Router\Http;
 
-use App\Core\Response as CoreResponse;
+use App\Core\Response;
 
-class Response
+class RouterHttpResponse
 {
     private $headers = [
         
@@ -64,12 +64,12 @@ class Response
 
         if ( $is_default_response ) {
 
-            if ( $has_extra_data ) return CoreResponse::json($content, $extra_data, $status);
+            if ( $has_extra_data ) return Response::json($content, $extra_data, $status);
 
-            return CoreResponse::json($content, $status);
+            return Response::json($content, $status);
         }
 
-        return CoreResponse::json($content);
+        return Response::json($content);
     }
 
     public function sendHeaders()

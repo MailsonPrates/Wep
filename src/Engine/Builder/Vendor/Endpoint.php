@@ -92,6 +92,7 @@ class Endpoint
             $endpoint_groups = $endpoint['group'] ?? $endpoint['groups'] ?? [];
             $endpoint_hooks = $endpoint['hooks'] ?? [];
             $endpoint_hooks = self::mergeHooks($endpoint_hooks, $module_hooks);
+            $endpoint_debug = $endpoint['debug'] ?? false;
 
             $url = $endpoint_url ?: $module_urls;
 
@@ -116,7 +117,8 @@ class Endpoint
                     'url' => $url,
                     'headers' => $endpoint_headers,
                     'type' => $method_data->type,
-                    'hooks' => $endpoint_hooks
+                    'hooks' => $endpoint_hooks,
+                    'debug' => $endpoint_debug
                 ];
             }
 

@@ -2,12 +2,13 @@
 
 namespace App\Core;
 
-use App\Core\Router\Http\Request;
-use App\Core\Router\Http\Response;
+use App\Core\Response;
+use App\Core\Router\Http\RouterHttpRequest;
+use Exception;
 
 trait Controller
 {
-    public function moduleApiControllerHandle(Request $request)
+    public function moduleApiControllerHandle(RouterHttpRequest $request)
     {
         $route_data = $request->routeMapData();
         $is_vendor_module = $route_data->vendor;
@@ -25,11 +26,7 @@ trait Controller
             return $response->json('Método não existe ou não permitido', false);
         }
 
-        $module_class =  $route_data->namespace . '\\' . $route_data->module;
-
-        if ( !class_exists($module_class) ){
-            $module_class = null;
-        }
+        $module_class =  $route_data->namespace . '\\' . $route_data->module_last;
 
         if ( $is_default_method ) return $this->handleDefaultMethods(
             $route_method_to_call, 
@@ -41,12 +38,24 @@ trait Controller
         return $this->{$route_method_to_call}($request, $response, $module_class);
     }
 
-    protected function handleDefaultMethods($method, $request, $response, $module)
+    protected function handleDefaultMethods($method, $request, $response, $module_class)
     {
-        $data = $request->data();
-        $method_to_call = $module . "::$method";
+        if ( !class_exists($module_class) ) return $response->json(Response::error("Class não existe: ". $module_class));
 
         try {
+
+            // Verifica se método existe no ModuleApi
+            // para casos de substituição do método default
+            $method_exist_in_module_api = method_exists($this, $method);
+
+            if ( $method_exist_in_module_api ){
+                // Executa método substituto
+                return call_user_func_array([$this, $method], [$request, $response]);
+            }
+
+            $data = $request->data();
+            $method_to_call = $module_class . "::$method";
+
             $result = $method_to_call($data);
             return $response->json($result);
 
@@ -56,7 +65,7 @@ trait Controller
         }
     }
 
-    protected function handleVendorModule($routeData, $request)
+    protected function handleVendorModule($routeData, RouterHttpRequest $request)
     {
         $response = new Response();
         

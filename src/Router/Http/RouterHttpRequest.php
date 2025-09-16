@@ -4,7 +4,7 @@ namespace App\Core\Router\Http;
 
 use App\Core\Router\RouteMap;
 
-class Request
+class RouterHttpRequest
 {
     private $fullUrl;
 
@@ -263,33 +263,47 @@ class Request
     {
         $enableFormSpoofing = ["PUT", "PATCH", "DELETE"];
 
+        // 1. Verifica se tem _method para spoofing
         $post = filter_input_array(INPUT_POST, FILTER_DEFAULT);
-
         if (!empty($post['_method']) && in_array($post['_method'], $enableFormSpoofing)) {
             $this->httpMethod = $post['_method'];
             $this->data = $post;
-
             unset($this->data["_method"]);
             return;
         }
+
+        // 2. POST
         if ($this->httpMethod == "POST") {
-            $this->data = filter_input_array(INPUT_POST, FILTER_DEFAULT);
 
+            // Tenta pegar POST normal
+            $postData = filter_input_array(INPUT_POST, FILTER_DEFAULT);
+
+            // Se POST vazio, tenta JSON
+            if (empty($postData)) {
+                $json = json_decode(file_get_contents('php://input'), true);
+                if (is_array($json)) {
+                    $this->data = $json;
+                    return;
+                }
+            }
+
+            $this->data = $postData;
             unset($this->data["_method"]);
             return;
         }
 
+        // 3. PUT/PATCH/DELETE via spoofing
         if (in_array($this->httpMethod, $enableFormSpoofing) && !empty($_SERVER['CONTENT_LENGTH'])) {
             parse_str(file_get_contents('php://input', false, null, 0, $_SERVER['CONTENT_LENGTH']), $putPatch);
             $this->data = $putPatch;
-
             unset($this->data["_method"]);
             return;
         }
 
+        // 4. Default vazio
         $this->data = [];
-        return;
     }
+
 
     /**
      * Return the httpMethod.

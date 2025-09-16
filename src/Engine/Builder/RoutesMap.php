@@ -20,20 +20,8 @@ class RoutesMap
         'put'    => 'PUT' 
     ];
 
-    private static $app_custom_build_actions = [];
-    
     public static function build($raw=false)
     {
-        /**
-         * Inicializa App custom build actions (se houver)
-         */
-        $app_custom_build_actions_file = DIR_CONFIG . "/build.php";
-
-        if ( file_exists($app_custom_build_actions_file) ){
-            self::$app_custom_build_actions = include_once($app_custom_build_actions_file);
-        }
-        
-
         $modules_routes = self::getModulesRoutes();
 
         /**
@@ -53,13 +41,7 @@ class RoutesMap
         $routes_list = [];
         $default_apis = ['get', 'create', 'update', 'delete'];
 
-        /**
-         * @todo usar Module::getConfigs()
-         */
-       // $modules_config_filenames = glob(DIR_MODULES . "/**/**/config/module.php");
         $modules_config_list = Module::getConfigs('regular');
-
-        //echo json_encode($modules_config_list);
 
         foreach($modules_config_list as $module_config){
 
@@ -67,46 +49,27 @@ class RoutesMap
             $namespace = $module_config['namespace'];
             $name = $module_config['module_name'] ?? "";
 
-            //echo $namespace . PHP_EOL;
-            
             if ( $active === false ) continue;
 
             $module_routes = $module_config['routes'] ?? [];
             $module_routes['namespace'] = $module_routes['namespace'] ?? $namespace;
             $module_routes['module_name'] = $name;
+            $module_routes['module_title'] = $module_config['title'] ?? $module_config['label'] ?? "";
             $module_routes['groups'] = $module_routes['groups'] ?? [];
 
             $routes_list[] = $module_routes;
         }
 
-       /* foreach($modules_config_filenames as $filename){
-            
-            $parts = explode("Modules/", $filename);
-            $item = $parts[1] ?? "";
-            $module_name = explode("/", $item)[0] ?? "";
-            $module_namespace = APP_MODULES_NAMESPACE . $module_name;
+        // Executa Hooks: "before_build
 
-            echo $module_namespace . PHP_EOL; 
 
-            $module_config = include_once($filename) ?? [];
-
-            $active = $module_config['active'] ?? true;
-            
-            if ( $active === false ) continue;
-
-            $module_routes = $module_config['routes'] ?? [];
-            $module_routes['namespace'] = $module_routes['namespace'] ?? $module_namespace;
-            $module_routes['module_name'] = $module_name;
-            $module_routes['groups'] = $module_routes['groups'] ?? [];
-
-            $routes_list[] = $module_routes;
-        }*/
+        //echo json_encode($modules_config_list) . PHP_EOL;
+        //echo "--------------------------" . PHP_EOL;
+        //echo ''.PHP_EOL;
 
         // Pega Vendors
         $vendor_routes_list = Vendor::buildRoutes();
 
-        //echo json_encode($vendor_routes_list) . PHP_EOL;
-        //echo "------" . PHP_EOL;
 
         $routes_list = array_merge($routes_list, $vendor_routes_list);
 
@@ -192,7 +155,13 @@ class RoutesMap
         foreach( $routes as $route ){
 
             $route_build = self::buildMap($route);
+
             $route_module_name = $route['module_name'];
+            //$has_vendor = str_contains($route['namespace'], "Vendor");
+            //$namespace_parts = explode($has_vendor ? "Vendor\\" : "Modules\\", $route['namespace']);
+            //$route_module_name = str_replace("\\", "", $namespace_parts[1]);
+
+            //echo $route_module_name . PHP_EOL;
 
             if ( !isset($route_build_items_by_module[$route_module_name]) ){
                 $route_build_items_by_module[$route_module_name] = [];
@@ -307,6 +276,20 @@ class RoutesMap
             $path = str_replace('//', '/', $path);
             $path = mb_substr($path, -1) == "/" ? $path : ($path . "/");
 
+            if ( str_starts_with($path, "/api") ){
+
+                if ( in_array($path, ['/api/get/', '/api/create/', '/api/update/', '/api/delete/']) ){
+                    $path = '/' . str_replace("-", "/", Str::camelToKebabCase($module_name)) . $path;
+                
+                } else {
+                    // Adiciona "/api" antes do ultimos items
+                    $path_parts = explode("/", $item->path);
+                    $offset = count($path_parts) - 1;
+                    array_splice($path_parts, $offset, 0, "api");
+                    $path = join("/", $path_parts);
+                }
+            }
+
             $item->main_path = $path;
 
             $type = self::getType($item);
@@ -327,8 +310,13 @@ class RoutesMap
                 $response[$path] = [];
             }
 
+            $module_title = $route->module_title ?? "";
+            $module_title = $module_title ?: $module_name_last;
+
             $response_item = [
                 'module' => $module_name,
+                'module_title' => $module_title,
+                'module_last' => $module_name_last,
                 'path' => $path,
                 'title' => $title,
                 'type' => $type,
@@ -347,18 +335,19 @@ class RoutesMap
             ];
 
             /**
-             * Executa App Custom Build Action: each_route
+             * Executa Hook each_route
              */
-            $each_route_action = self::$app_custom_build_actions['each_route'] ?? false;
 
-            if ( $each_route_action && is_callable($each_route_action) ){
-                $response_item = $each_route_action($response_item, [
-                    'path' => $path,
-                    'type' => $type,
-                    'raw' => $item,
-                    'module' => $route
-                ]) ?: $response_item;
-            }
+            $response_item = BuilderHooks::eachRoute($response_item, [
+                'path' => $path,
+                'type' => $type,
+                'raw' => $item,
+                'module' => $route
+            ]);
+
+            //echo json_encode($response_item) . PHP_EOL;
+            //echo "--------------" . PHP_EOL;
+            //echo "".PHP_EOL;
 
             $response[$path][$type] = $response_item;
         }
@@ -399,16 +388,17 @@ class RoutesMap
     {
         $alert = self::getEditWarning();
 
-        $result = [];
         $module_methods = [];
         $module_declarations = [];
 
-       //echo json_encode($routesByModules);
+       //echo json_encode($routesByModules) . PHP_EOL;
+       //echo "----------------" . PHP_EOL;
 
         foreach( $routesByModules as $moduleName => $items ){
 
             $module_name = $moduleName;
             $module_routes = [];
+            $module_vendor_routes = [];
 
             foreach( $items as $methods ){
                 
@@ -427,7 +417,24 @@ class RoutesMap
                         $resource = $route->resource ?? null;
                         $custom = $route->custom ?? [];
     
-                        $module_routes[] = [
+                        if ( $resource ){
+
+                            if ( !isset($module_vendor_routes[$resource]) ){
+                                $module_vendor_routes[$resource] = [];
+                            }
+
+                            $module_vendor_routes[$resource][$method] = [
+                                'type' => $type,
+                                'method' => $method,
+                                'path' => $path,
+                                'resource' => $resource,
+                                'custom' => $custom
+                            ];
+
+                            continue;
+                        }
+
+                        $module_routes[$method] = [
                             'type' => $type,
                             'method' => $method,
                             'path' => $path,
@@ -438,32 +445,22 @@ class RoutesMap
                 }
             }
 
-            $module_routes = json_encode($module_routes);
+            $module_routes = empty($module_vendor_routes) ? $module_routes : $module_vendor_routes;
+
+            if ( empty($module_routes) ) continue;
+
+            $module_routes = json_encode((object)$module_routes);
             $module_name = str_replace("\\", "", $module_name);
             $module_method = $module_name . "Api";
 
-            $module_filename = Str::camelToKebabCase($module_name) . '.js';
-
-            $module_declarations[] = 'const '.$module_method." = apiFactory({routes:$module_routes});";
+            $module_declarations[] = 'const '.$module_method." = App.apiFactory($module_routes);";
             $module_methods[] = $module_method;
-
-            continue;
-
-            $result[$module_name] = [
-                'content' => join("\r", [
-                    $alert,
-                    'import {apiFactory} from "core";',
-                    'const '.$module_method." = apiFactory({routes:$module_routes});",
-                    'export default '.$module_method . ';'
-                ]),
-                'filename' => $module_filename
-            ];
         }
 
         //return $result;
         return join("\r", [
             $alert,
-            'import {apiFactory} from "core";',
+            'import App from "app";',
             "\n",
             join("\r", $module_declarations),
             "\n",
@@ -497,7 +494,7 @@ class RoutesMap
                 if ( !$view ) continue;
 
                 $custom = $route->custom
-                    ? json_encode( $route->custom)
+                    ? json_encode($route->custom)
                     : '{}';
 
                 $view_placeholder = $route->view_placeholder ?? Obj::set();
@@ -613,7 +610,9 @@ class RoutesMap
 
         if ( isset($route->method) ) return $response;
 
-       //echo $module_name . PHP_EOL;
+       //echo 'module_name: ' . $module_name . PHP_EOL;
+       //echo 'module_namespace: ' . $module_namespace . PHP_EOL;
+       //echo '----------------------' . PHP_EOL;
        //echo json_encode($route) . PHP_EOL;
 
         $view = $route->view ?? null;
@@ -631,6 +630,14 @@ class RoutesMap
                 $view = Obj::set([
                     'main' => $view
                 ]);
+            }
+
+            if ( str_starts_with($view->main, "Modules/") ){
+                $path = '/src/';
+            }
+
+            if ( str_starts_with($view->main, "src/") ){
+                $path = '';
             }
 
             $has_extension = str_contains($view->main, ".js");

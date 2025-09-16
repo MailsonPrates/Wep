@@ -15,6 +15,7 @@ export default function Fluent(configs=[]){
     let State = {};
 
     let Api = {
+        
         ajax: props => {
             State.ajax = props || {};
             return Api;
