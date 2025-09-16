@@ -12,6 +12,8 @@ class Executor
 
         $debug = [];
 
+        $config["raw"] = $config["raw"] ?? false;
+
         try {
 			
 			$stmt = $pdo->prepare($query);

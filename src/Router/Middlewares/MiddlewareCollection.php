@@ -2,7 +2,7 @@
 
 namespace App\Core\Router\Middlewares;
 
-use App\Core\Router\Http\Request;
+use App\Core\Router\Http\RouterHttpRequest;
 use App\Core\Router\Middlewares\MiddlewareRoute;
 
 class MiddlewareCollection
@@ -43,11 +43,11 @@ class MiddlewareCollection
     /**
      * Method responsible for setting the Route's Request
      * 
-     * @param \MinasRouter\Http\Request $request
+     * @param \MinasRouter\Http\RouterHttpRequest $request
      * 
      * @return void
      */
-    public function setRequest(Request $request)
+    public function setRequest(RouterHttpRequest $request)
     {
         $this->currentRequest = $request;
     }

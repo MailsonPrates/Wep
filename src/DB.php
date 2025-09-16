@@ -129,13 +129,17 @@ class DB
         if ( !$name || !$username || !$password )
             throw new Exception("Dados do banco de dados inválidos");
 
-        self::$pdo = $connection->connect([
-            "db_host" => $host,
-            "db_name" => $name,
-            "db_username" => $username,
-            "db_password" => $password,
-            "db_charset" => $charset
-        ]);
+        try {
+            self::$pdo = $connection->connect([
+                "db_host" => $host,
+                "db_name" => $name,
+                "db_username" => $username,
+                "db_password" => $password,
+                "db_charset" => $charset
+            ]);
+        } catch (\Throwable $th) {
+            throw new \Exception($th->getMessage());
+        }
 
         return new self();
     }
