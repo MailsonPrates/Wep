@@ -34,12 +34,13 @@ class Executor
             $query_method = explode(" ", strtolower($query))[0];
             $is_select_query = $query_method == "select";
             $is_update_query = $query_method == "update";
+            $is_custom_query = $config['custom_query'] ?? false;
 
             $error_on_update = $result && ($is_update_query && $stmt->rowCount() < 0);
 			
 			if ( !$result || $error_on_update ) return Response::error();
             
-            if ( $is_select_query ){
+            if ( $is_select_query || $is_custom_query ){
 
                 /**
                  * @todo refatorar

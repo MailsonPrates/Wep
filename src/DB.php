@@ -69,6 +69,8 @@ class DB
 
         }
 
+        $configs['custom_query'] = true;
+
         return Executor::execute(self::$pdo, $query_string, $fields, $configs);
     }
 
