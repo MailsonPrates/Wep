@@ -44,8 +44,8 @@ class Executor
                 /**
                  * @todo refatorar
                  */
-                $fetch_mode_string = isset($config["fetch"]) ? $config["fetch"] : null;
-                $fetch_mode_string = strtoupper($config["fetch"] ?: "assoc");
+                $fetch_mode_string = $config["fetch"] ?? null;
+                $fetch_mode_string = strtoupper($fetch_mode_string ?: "assoc");
 
                 $fetch_mode = constant("PDO::FETCH_".$fetch_mode_string);
 
