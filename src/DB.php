@@ -148,6 +148,8 @@ class DB
 
     public static function escape($value="")
     {
+        if ( is_null($value) || $value === "" ) return $value;
+
 		return str_replace(array("\\", "\0", "\n", "\r", "\x1a", "'", '"'), array("\\\\", "\\0", "\\n", "\\r", "\Z", "\'", '\"'), $value);
     }
 }
