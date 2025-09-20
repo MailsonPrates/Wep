@@ -17,6 +17,7 @@ trait Helpers
         $this->duplicateUpdate = [];
         $this->fetch_mode = "";
         $this->raw = false;
+        $this->is_debug = false;
     }
 
     /**
@@ -118,6 +119,18 @@ trait Helpers
     
                 call_user_func_array([$this, $prop], $arguments);
             }
+        }
+
+        if ( isset($props['fetch']) ){
+            $this->fetch($props['fetch']);
+        }
+
+        if ( isset($props['raw']) ){
+            $this->raw($props['raw']);
+        }
+
+        if ( isset($props['debug']) ){
+            $this->debug($props['debug']);
         }
     }
 

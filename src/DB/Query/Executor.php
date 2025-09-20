@@ -10,7 +10,12 @@ class Executor
     {
         if ( !$pdo ) return Response::error("Erro de conexão com banco de dados");
 
-        $debug = [];
+        $debug = [
+            'bind' => [],
+            'query' => $query,
+            'fields' => $fields,
+            'config' => $config
+        ];
 
         $config["raw"] = $config["raw"] ?? false;
 
@@ -25,8 +30,12 @@ class Executor
                 foreach( $fields as $key => &$value ){
                     $value = $value === NULL ? "" : $value;
                     $stmt->bindParam(":$key", $value);
-                    $debug[":$key"] = $value;
+                    $debug['bind'][":$key"] = $value;
                 }
+            }
+
+            if ( $config['debug'] ){
+                return $debug;
             }
 
 			$result = $stmt->execute();

@@ -108,8 +108,6 @@ class Handler
             "table" => $this->config->table
         ]);
 
-        $this->resetProps();
-
         $query = $selectQuery->build($fields);
 
         return $this->execute($query);
@@ -135,8 +133,6 @@ class Handler
             "duplicateUpdate" => $this->duplicateUpdate
         ]);
 
-        $this->resetProps();
-
         $query = $insertQuery->build($fields);
 
         return $this->execute($query);
@@ -159,8 +155,6 @@ class Handler
             "table" => $this->config->table
         ]);
         
-        $this->resetProps();
-
         $query = $updateQuery->build($fields);
 
         return $this->execute($query);
@@ -184,8 +178,6 @@ class Handler
             "table" => $this->config->table
         ]);
 
-        $this->resetProps();
-
         $query = $updateQuery->build();
 
         return $this->execute($query);
@@ -205,24 +197,27 @@ class Handler
      */
     private function execute($query)
     {
-        /**
-         * @debug only
-         */
-        if ( $this->is_debug ){
-            $query->raw = $this::parseQueryRaw($query->string, $query->placeholders);
-            return $query;
-        }
-
         $pdo = $this->pdo ?? null;
 
         if ( isset($query->error) ) return $query;
 
         $fields = isset($query->placeholders) ? (array)$query->placeholders : [];
 
-        return Executor::execute($pdo, $query->string, $fields, [
+        $execute = Executor::execute($pdo, $query->string, $fields, [
             "fetch" => $this->fetch_mode,
-            "raw" => $this->raw
+            "raw" => $this->raw,
+            'debug' => $this->is_debug
         ]);
+
+        if ( $this->is_debug ){
+            $query->raw = $this::parseQueryRaw($query->string, $query->placeholders);
+            $query->execute = $execute;
+            return $query;
+        }
+
+        $this->resetProps();
+
+        return $execute;
     }
 
 }
