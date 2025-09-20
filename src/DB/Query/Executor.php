@@ -49,8 +49,12 @@ class Executor
             $error_on_update = $result && ($is_update_query && $stmt->rowCount() < 0);
 			
 			if ( !$result || $error_on_update ) return Response::error();
+
+            if ( $is_custom_query ){
+                $is_select_query = str_contains($query, "Select");
+            }
             
-            if ( $is_select_query || $is_custom_query ){
+            if ( $is_select_query ){
 
                 /**
                  * @todo refatorar
@@ -81,7 +85,6 @@ class Executor
             ]);
 
             return Response::success();
-			
 
         } catch (\PDOException $e){
             return Response::error($e->getMessage());

@@ -76,14 +76,14 @@ class DB
 
     public static function beginTransaction()
     {
+        self::connect();
         self::$pdo->beginTransaction();
         return new self();
     }
 
     public static function commit()
     {
-        self::$pdo->commit();
-        return new self();
+        return self::$pdo->commit();
     }
 
     public static function rollback()
