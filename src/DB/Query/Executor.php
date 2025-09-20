@@ -18,6 +18,7 @@ class Executor
         ];
 
         $config["raw"] = $config["raw"] ?? false;
+        $config['debug'] = $config['debug'] ?? false;
 
         try {
 			
