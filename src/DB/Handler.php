@@ -72,7 +72,7 @@ class Handler
     /**
      * @var \PDO
      */
-    private $pdo;
+    public $pdo;
 
     /**
      * @var object

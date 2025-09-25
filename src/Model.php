@@ -5,6 +5,7 @@ namespace App\Core;
 trait Model
 {
     public static $table = null;
+    public static $pdo = null;
 
     protected static function run($method, $props)
     {
@@ -30,7 +31,11 @@ trait Model
 			self::$table = DB::table($module_table_name, $module_config_db);
 		}
 
-        return self::$table->{$method}($props);
+        $table = self::$table;
+
+        self::$pdo = $table->pdo;
+
+        return $table->{$method}($props);
     }
 
     public static function get($props=[])
