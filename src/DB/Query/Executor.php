@@ -50,11 +50,7 @@ class Executor
 			
 			if ( !$result || $error_on_update ) return Response::error();
 
-            if ( $is_custom_query ){
-                $is_select_query = str_contains($query, "Select");
-            }
-            
-            if ( $is_select_query ){
+            if ( $is_select_query || $is_custom_query ){
 
                 /**
                  * @todo refatorar
@@ -71,7 +67,7 @@ class Executor
 
                 $fetch = $fetch_methods[$fetch_mode_string] ?? "fetchAll";
                 
-                $data = $stmt->{$fetch}($fetch_mode);
+                $data = $stmt->{$fetch}($fetch_mode) ?? [];
 
                 if ( $config["raw"] ) return Response::success($data, [
                     "stmt" => $stmt
@@ -81,10 +77,13 @@ class Executor
             }
 
             if ( $config["raw"] ) return Response::success([], [
-                "stmt" => $stmt
+                "stmt" => $stmt,
+                'pdo' => $pdo
             ]);
 
-            return Response::success();
+            return Response::success([], [
+                'last_id' => $pdo->lastInsertId()
+            ]);
 
         } catch (\PDOException $e){
             return Response::error($e->getMessage());
