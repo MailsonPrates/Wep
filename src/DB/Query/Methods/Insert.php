@@ -38,19 +38,19 @@ class Insert implements MethodInterface
         $id = uniqid("_");
         $fields_cols_keys_list = [];
 
-        foreach( $fields_cols as $col ){
+        foreach( $fields_cols as $i => $col ){
             $key = $col.$id;
             $fields_cols_keys_list[] = $key;
 
             $placeholders[$key] = $fields[$col];
+            $fields_cols[$i] = "`$col`";
         }
 
-        
         $fields_cols_joined = join(", ", $fields_cols);
         $fields_cols_keys = join(", ", preg_filter('/^/', ":", $fields_cols_keys_list));
 
         // Inicia montagem da query
-        $query = "INSERT INTO $this->table ($fields_cols_joined) VALUES ($fields_cols_keys)";
+        $query = "INSERT INTO `".$this->table . "` ($fields_cols_joined) VALUES ($fields_cols_keys)";
 
         // On duplicate key update
         $duplicate_update_fields = $this->duplicateUpdate;
