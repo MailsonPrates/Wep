@@ -34,7 +34,7 @@ class Delete implements MethodInterface
     public function build()
     {
         // Inicia montagem da query
-        $query = "DELETE FROM ".$this->table;
+        $query = "DELETE FROM `".$this->table . "`";
         $placeholders = [];
 
         // CONDITIONS
