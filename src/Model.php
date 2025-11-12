@@ -9,6 +9,17 @@ trait Model
 
     protected static function run($method, $props)
     {
+        self::getTable();
+        return self::$table->{$method}($props);
+    }
+
+    public static function table()
+    {
+        return self::getTable();
+    }
+
+    private static function getTable()
+    {
         if ( !self::$table ){
 
             $module_namespace_parts = explode('Modules\\', static::class);
@@ -29,13 +40,10 @@ trait Model
             $module_config_db['name'] = $module_table_name;
 
 			self::$table = DB::table($module_table_name, $module_config_db);
+            self::$pdo = self::$table->pdo;
 		}
 
-        $table = self::$table;
-
-        self::$pdo = $table->pdo;
-
-        return $table->{$method}($props);
+        return self::$table;
     }
 
     public static function get($props=[])
