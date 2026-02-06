@@ -516,8 +516,12 @@ class RoutesMap
                 $element_name = join("", $element_name);
                 $element_name = explode(".", $element_name)[0];
                 $element_name = str_replace("\\", "", $element_name);
+
+                $element_declaration = "\tconst $element_name = lazy(() => import(`$view`));";
               
-                $elements[] = "\tconst $element_name = lazy(() => import(`$view`));";
+                if ( in_array($element_declaration, $elements) ) continue;
+
+                $elements[] = $element_declaration;
                 $routes[] = "\t\t\t<Route key='$element_name' path='$path' element={<$element_name />} />";
 
                 //echo $element_name. PHP_EOL;

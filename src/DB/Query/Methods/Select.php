@@ -67,7 +67,7 @@ class Select implements MethodInterface
             : ["*"];
 
         // Inicia montagem da query
-        $query = ["SELECT ".join(", ", $fields_list). " FROM ".$this->table];
+        $query = ["SELECT ".join(", ", $fields_list). " FROM `".$this->table . "`"];
 
         $response = Obj::set([
             "filters" => $this->filters, 
