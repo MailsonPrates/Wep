@@ -34,7 +34,7 @@ class Update implements MethodInterface
     public function build(array $fields=[])
     {
         // Inicia montagem da query
-        $query = "UPDATE ".$this->table;
+        $query = "UPDATE `".$this->table . "`";
         $placeholders = [];
         $fields_query = [];
 

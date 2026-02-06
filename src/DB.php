@@ -69,19 +69,21 @@ class DB
 
         }
 
+        $configs['custom_query'] = true;
+
         return Executor::execute(self::$pdo, $query_string, $fields, $configs);
     }
 
     public static function beginTransaction()
     {
+        self::connect();
         self::$pdo->beginTransaction();
         return new self();
     }
 
     public static function commit()
     {
-        self::$pdo->commit();
-        return new self();
+        return self::$pdo->commit();
     }
 
     public static function rollback()
@@ -142,5 +144,12 @@ class DB
         }
 
         return new self();
+    }
+
+    public static function escape($value="")
+    {
+        if ( is_null($value) || $value === "" ) return $value;
+
+		return str_replace(array("\\", "\0", "\n", "\r", "\x1a", "'", '"'), array("\\\\", "\\0", "\\n", "\\r", "\Z", "\'", '\"'), $value);
     }
 }
