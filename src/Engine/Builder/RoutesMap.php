@@ -263,6 +263,7 @@ class RoutesMap
         $parent_view = $route->view ?? Obj::set();
         $parent_view_placeholder = self::getViewPlaceholder($parent_view);
         $parent_view_template = self::getViewTemplate(($route->view['template'] ?? null), $namespace);
+        $route_controller = $route->controller ?? null;
 
         foreach( $groups as $item ){
 
@@ -297,7 +298,7 @@ class RoutesMap
             $title = $item->title ?? '';
             $view = self::getView($item, $module_name, $namespace);
 
-            $controller = self::getController($item, $namespace, $module_name_last);
+            $controller = self::getController($item, $namespace, $module_name_last, $route_controller);
 
             $custom = $item->custom ?? [];
 
@@ -594,9 +595,31 @@ class RoutesMap
         return $middlewares;
     }
 
-    private static function getController($route, $namespace, $moduleName)
+    private static function getController($route, $namespace, $moduleName, $route_controller=null)
     {
-        if ( isset($route->controller) ) return $route->controller;
+        $controller = null;
+
+        if ( isset($route->controller) ) {
+            $controller = $route->controller;
+        }
+
+        if ( $route_controller ){
+            $controller = $route_controller;
+        }
+
+        if ( $controller ){
+
+            if ( !str_contains($controller, "App\\") ){
+                $controller = "$namespace\\$controller";
+            }
+
+            if ( !str_contains($controller, "@") ){
+                $method_name = $route->method ?? "handle";
+                $controller = "$controller@$method_name";
+            }
+
+            return $controller;
+        }
 
         if ( isset($route->method) ){
             $default_api_controller = "$namespace\\$moduleName" . "Api@moduleApiControllerHandle";
