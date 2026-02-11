@@ -111,6 +111,10 @@ class VendorMethod
             }
         }
 
+        $is_debug = $arguments['debug'] ?? false;
+
+        if ( $is_debug ) return $request->getOptions();
+
         $request->execute();
         $response = $request->response();
 
