@@ -330,7 +330,12 @@ class Endpoint
             $words_parsed[] = $parsed;
         }
 
-        return join(' ', $words_parsed);
+        $text_ready = join(' ', $words_parsed);
+
+
+        if ( str_contains($text_ready, "{{") ) return self::parseEnvVariables($text_ready);
+
+        return $text_ready;
     }
 
 }
