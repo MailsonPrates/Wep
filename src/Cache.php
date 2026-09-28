@@ -25,7 +25,7 @@ class Cache
 		}
 	}
 
-	public static function get(string $key) 
+	public static function _get(string $key) 
     {
 		$files = glob(DIR_CACHE . '/cache.' . basename($key) . '.*');
 
@@ -58,8 +58,34 @@ class Cache
 		return false;
 	}
 
+	public static function get(string $key) 
+	{
+		$files = glob(DIR_CACHE . '/cache.' . basename($key) . '.*');
+
+		if ($files) {
+			$file = $files[0];
+
+			$handle = @fopen($file, 'r');
+
+			if ($handle) {
+				flock($handle, LOCK_SH);
+
+				$data = stream_get_contents($handle);
+
+				flock($handle, LOCK_UN);
+
+				fclose($handle);
+
+				return json_decode($data, true);
+			}
+		}
+
+		return false;
+	}	
+
 	public static function set($key, $value, $expire=null) 
     {
+
 		self::delete($key);
 
         $expire = $expire ?? self::$expire;
