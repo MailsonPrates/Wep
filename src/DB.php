@@ -77,18 +77,29 @@ class DB
     public static function beginTransaction()
     {
         self::connect();
-        self::$pdo->beginTransaction();
+
+        if (!self::$pdo->inTransaction()) {
+            self::$pdo->beginTransaction();
+        }
+
         return new self();
     }
 
     public static function commit()
     {
-        return self::$pdo->commit();
+        if (self::$pdo->inTransaction()) {
+            return self::$pdo->commit();
+        }
+
+        return false;
     }
 
     public static function rollback()
     {
-        self::$pdo->rollback();
+        if (self::$pdo->inTransaction()) {
+            self::$pdo->rollBack();
+        }
+
         return new self();
     }
 
@@ -110,9 +121,11 @@ class DB
         self::$debug = $config['debug'] ?? self::$debug;
     }
 
-    public static function connect($config=[]) 
+    public static function connect($config = [])
     {
-        if ( isset(self::$pdo) ) new self();
+        if (isset(self::$pdo)) {
+            return new self();
+        }
 
         $connection = Connection::instance();
 
@@ -128,8 +141,9 @@ class DB
         $password = Core::config("env", $password_key);
         $charset = Core::config("env", $charset_key, 'utf8');
 
-        if ( !$name || !$username || !$password )
+        if (!$name || !$username || !$password) {
             throw new Exception("Dados do banco de dados inválidos");
+        }
 
         try {
             self::$pdo = $connection->connect([
