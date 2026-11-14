@@ -72,6 +72,10 @@ beforeEach(function () {
         $this->markTestSkipped('MySQL de teste não configurado (DB_TEST_NAME/USER/PASS) ou indisponível.');
     }
 
+    // os testes assumem modo estrito; no modo não estrito (padrão do XAMPP) o MySQL converte
+    // valores inválidos em silêncio (ex.: "" numa coluna INT vira 0)
+    $pdo->exec("SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
+
     $pdo->exec('DROP TABLE IF EXISTS items, `order`, guard');
     $pdo->exec("CREATE TABLE items (
         id INT PRIMARY KEY AUTO_INCREMENT, sku VARCHAR(20) UNIQUE,
@@ -125,7 +129,8 @@ describe('conexão', function () {
     });
 
     it('barra DSN injection no nome do banco, sem tentar conectar', function () {
-        expect(fn() => connectWith(['db_name' => 'testdb;host=servidor-malicioso']))
+        // senha fictícia: DB::connect recusa senha vazia antes de validar o DSN (root do XAMPP não tem senha)
+        expect(fn() => connectWith(['db_name' => 'testdb;host=servidor-malicioso', 'db_password' => 'x']))
             ->toThrow(Exception::class, 'Invalid database name');
     });
 });
