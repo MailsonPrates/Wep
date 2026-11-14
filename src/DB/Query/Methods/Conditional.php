@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query\Methods;
+namespace Wep\DB\Query\Methods;
 
 use InvalidArgumentException;
 

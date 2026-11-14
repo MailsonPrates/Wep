@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\Engine\Builder\Vendor;
+namespace Wep\Engine\Builder\Vendor;
 
-use App\Core\Str;
-use App\Core\Engine\Builder\Vendor\Endpoint;
-use App\Core\Engine\Module;
+use Wep\Str;
+use Wep\Engine\Builder\Vendor\Endpoint;
+use Wep\Engine\Module;
 
 /**
  * Classe responsável por montar dados dos 

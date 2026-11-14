@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\DB\Query\Formatter;
+use Wep\DB\Query\Formatter;
 
 describe('Formatter::hasNamedPlaceholders', function () {
 

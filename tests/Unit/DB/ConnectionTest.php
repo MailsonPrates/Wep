@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\DB\Connection;
+use Wep\DB\Connection;
 
 /*
  * A validação acontece ANTES de qualquer tentativa de conexão,

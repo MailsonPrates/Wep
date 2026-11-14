@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\View\Template;
+namespace Wep\View\Template;
 
-use App\Core\View\Template\Html;
+use Wep\View\Template\Html;
 
 
 class Template

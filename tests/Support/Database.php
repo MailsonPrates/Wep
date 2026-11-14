@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\DB;
+use Wep\DB;
 
 /*
 |--------------------------------------------------------------------------
@@ -8,7 +8,7 @@ use App\Core\DB;
 |--------------------------------------------------------------------------
 | Carregado por tests/Pest.php. Usa as classes reais do Core (autoload do Composer).
 |
-| Formato do App\Core\Response:
+| Formato do Wep\Response:
 |   sucesso: {error: false, data: ..., ...params}   (params ficam no nível raiz)
 |   erro:    {error: true, message?: ..., ...params}
 */

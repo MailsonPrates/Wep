@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Core\Engine;
+namespace Wep\Engine;
 
-use App\Core\Command\Console;
-use App\Core\Core;
+use Wep\Command\Console;
+use Wep\Core;
 
 class Commands
 {
     private static $actions = [
-        'update' => 'App\Core\Engine\Update@handle',
-        'create module' => 'App\Core\Engine\Builder\Snippets\Module@create'
+        'update' => 'Wep\Engine\Update@handle',
+        'create module' => 'Wep\Engine\Builder\Snippets\Module@create'
     ];
 
     public static function run($argv=[], $config=[])

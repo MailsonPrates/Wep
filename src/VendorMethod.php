@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Engine\Builder\Vendor\Endpoint;
+use Wep\Engine\Builder\Vendor\Endpoint;
 use Exception;
-use App\Core\Http\HttpRequest;
+use Wep\Http\HttpRequest;
 
 class VendorMethod
 {

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\RouteMapData;
+use Wep\Router\RouteMapData;
 
 class RouteMap
 {

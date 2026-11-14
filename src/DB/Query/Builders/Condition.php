@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\DB\Query\Builders;
+namespace Wep\DB\Query\Builders;
 
-use App\Core\Obj;
+use Wep\Obj;
 use InvalidArgumentException;
 
 class Condition

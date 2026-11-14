@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Engine\Builder;
+namespace Wep\Engine\Builder;
 
 class Warning
 {

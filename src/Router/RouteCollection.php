@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\RouteGroups;
-use App\Core\Router\Traits\RouterHelpers;
-use App\Core\Router\Traits\RouteManagement;
-use App\Core\Router\Exceptions\NotFoundException;
-use App\Core\Router\Exceptions\BadMethodCallException;
-use App\Core\Router\Exceptions\MethodNotAllowedException;
-use App\Core\Router\Middlewares\MiddlewareCollection;
-use App\Core\Router\Exceptions\BadMiddlewareExecuteException;
+use Wep\Router\RouteGroups;
+use Wep\Router\Traits\RouterHelpers;
+use Wep\Router\Traits\RouteManagement;
+use Wep\Router\Exceptions\NotFoundException;
+use Wep\Router\Exceptions\BadMethodCallException;
+use Wep\Router\Exceptions\MethodNotAllowedException;
+use Wep\Router\Middlewares\MiddlewareCollection;
+use Wep\Router\Exceptions\BadMiddlewareExecuteException;
 
 class RouteCollection
 {
@@ -68,7 +68,7 @@ class RouteCollection
      * Method responsible for defining the 
      * group of current routes.
      * 
-     * @param null|\App\Core\Router\RouteGroups $group = null
+     * @param null|\Wep\Router\RouteGroups $group = null
      * 
      * @return void
      */
@@ -81,7 +81,7 @@ class RouteCollection
      * Method responsible for returning the
      * current route.
      * 
-     * @return null|\App\Core\Router\RouteManager
+     * @return null|\Wep\Router\RouteManager
      */
     public function getCurrentRoute()
     {
@@ -96,7 +96,7 @@ class RouteCollection
      * @param string $uri
      * @param array|string|\Closure $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public function addRoute(String $method, $uri, $callback)
     {
@@ -115,7 +115,7 @@ class RouteCollection
      * @param array|string|\Closure $callback
      * @param null|array $methods
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public function addMultipleHttpRoutes(String $uri, $callback, ?array $methods = null)
     {
@@ -173,7 +173,7 @@ class RouteCollection
      * @param string $routeName
      * @param null|string $httpMethod = null
      * 
-     * @return \App\Core\Router\RouteManager|null
+     * @return \Wep\Router\RouteManager|null
      */
     public function getByName(String $routeName, $httpMethod = null): ?RouteManager
     {

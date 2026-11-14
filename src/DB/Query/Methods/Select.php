@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Core\DB\Query\Methods;
+namespace Wep\DB\Query\Methods;
 
-use App\Core\Obj;
-use App\Core\DB\Query\Builders\Condition;
-use App\Core\DB\Query\Builders\Identifier;
-use App\Core\DB\Query\Builders\Placeholders;
-use App\Core\DB\Query\Methods\MethodInterface;
+use Wep\Obj;
+use Wep\DB\Query\Builders\Condition;
+use Wep\DB\Query\Builders\Identifier;
+use Wep\DB\Query\Builders\Placeholders;
+use Wep\DB\Query\Methods\MethodInterface;
 use InvalidArgumentException;
 
 /**

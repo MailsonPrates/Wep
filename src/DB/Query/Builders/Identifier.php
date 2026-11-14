@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\DB\Query\Builders;
+namespace Wep\DB\Query\Builders;
 
-use App\Core\DB\Query\Raw;
+use Wep\DB\Query\Raw;
 use InvalidArgumentException;
 
 /**

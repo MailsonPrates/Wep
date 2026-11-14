@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Router\Traits;
+namespace Wep\Router\Traits;
 
-use App\Core\Router\RouteManager;
+use Wep\Router\RouteManager;
 
 trait RouteManagement
 {
@@ -13,7 +13,7 @@ trait RouteManagement
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     protected function addRouter(String $uri, $callback)
     {
@@ -39,7 +39,7 @@ trait RouteManagement
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     protected function newRouter(String $uri, $callback)
     {

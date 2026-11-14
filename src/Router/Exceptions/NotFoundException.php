@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Router\Exceptions;
+namespace Wep\Router\Exceptions;
 
 class NotFoundException extends \Exception
 {

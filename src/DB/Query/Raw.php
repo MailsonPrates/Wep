@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query;
+namespace Wep\DB\Query;
 
 /**
  * Fragmento SQL "de confiança", inserido na query SEM validação nem escape.

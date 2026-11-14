@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\Engine\Builder;
+namespace Wep\Engine\Builder;
 
 use App\App;
-use App\Core\Cache;
-use App\Core\Engine\Module;
+use Wep\Cache;
+use Wep\Engine\Module;
 
 class BuilderHooks
 {

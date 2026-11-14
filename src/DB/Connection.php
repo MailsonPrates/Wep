@@ -1,8 +1,8 @@
 <?php 
 
-namespace App\Core\DB;
+namespace Wep\DB;
 
-use App\Core\Singleton;
+use Wep\Singleton;
 
 class Connection extends Singleton
 {

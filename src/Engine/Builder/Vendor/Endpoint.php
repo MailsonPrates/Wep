@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\Engine\Builder\Vendor;
+namespace Wep\Engine\Builder\Vendor;
 
-use App\Core\Core;
-use App\Core\Obj;
-use App\Core\Str;
+use Wep\Core;
+use Wep\Obj;
+use Wep\Str;
 
 class Endpoint
 {

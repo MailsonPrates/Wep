@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query\Builders;
+namespace Wep\DB\Query\Builders;
 
 use InvalidArgumentException;
 

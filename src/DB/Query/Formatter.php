@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query;
+namespace Wep\DB\Query;
 
 /**
  * Utilitários de texto da query, usados apenas para debug/validação.

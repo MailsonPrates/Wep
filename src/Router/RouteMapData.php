@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
 /**
  * Objeto contendo os dados da rota

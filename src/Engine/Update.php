@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Core\Engine;
+namespace Wep\Engine;
 
-use App\Core\Core;
-use App\Core\Engine\Builder\BuilderHooks;
-use App\Core\Engine\Builder\Warning;
-use App\Core\Engine\Builder\RoutesMap;
-use App\Core\Engine\Builder\Vendor\Vendor;
-use App\Core\Obj;
-use App\Core\Str;
+use Wep\Core;
+use Wep\Engine\Builder\BuilderHooks;
+use Wep\Engine\Builder\Warning;
+use Wep\Engine\Builder\RoutesMap;
+use Wep\Engine\Builder\Vendor\Vendor;
+use Wep\Obj;
+use Wep\Str;
 
 /**
  * Classe responsável por atualizar recursos do App

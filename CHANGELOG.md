@@ -5,6 +5,18 @@ seção **Mudanças de comportamento** de cada entrada.
 
 ## [Não lançado]
 
+### Namespace (Módulo 1)
+
+- O namespace do Core passou de `App\Core\` para **`Wep\`** (por exemplo, `Wep\DB`, `Wep\Router\Route`
+  e `Wep\Http\iMiddleware`). Assim ele não colide mais com o `App\` das aplicações.
+- **Compatível:** `src/compat.php` cria sob demanda o alias `App\Core\X` → `Wep\X`. `use App\Core\Model`,
+  `implements App\Core\Http\iMiddleware` e os `route-maps.build.php` já gerados continuam funcionando.
+  O alias está marcado como deprecated e será removido na 2.0.
+- O mapeamento manual `"App\\Core\\": "vendor/wep/framework/src/"` no `composer.json` das aplicações
+  deixa de ser necessário e pode ser removido. Mantê-lo também funciona, porque o loader de compatibilidade
+  roda antes do Composer.
+- Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
+
 ### Repositório (Módulo 0)
 
 - `vendor/` e `composer.lock` deixaram de ser versionados (já constavam no `.gitignore`).

@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\DB;
-use App\Core\DB\Connection;
+use Wep\DB;
+use Wep\DB\Connection;
 
 /*
  * Roda contra um MySQL/MariaDB real. Configure DB_TEST_HOST, DB_TEST_NAME, DB_TEST_USER e DB_TEST_PASS

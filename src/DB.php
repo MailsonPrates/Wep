@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\DB\Connection;
-use App\Core\DB\Handler;
-use App\Core\DB\Query\Executor;
-use App\Core\DB\Query\Formatter;
-use App\Core\DB\Query\Raw;
+use Wep\DB\Connection;
+use Wep\DB\Handler;
+use Wep\DB\Query\Executor;
+use Wep\DB\Query\Formatter;
+use Wep\DB\Query\Raw;
 use Exception;
 
 class DB

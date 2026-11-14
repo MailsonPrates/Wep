@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Obj;
+use Wep\Obj;
 
 class Response
 {

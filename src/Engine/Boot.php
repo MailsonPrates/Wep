@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\Engine;
+namespace Wep\Engine;
 
-use App\Core\Response;
-use App\Core\Env\Env;
-use App\Core\Router\Route;
+use Wep\Response;
+use Wep\Env\Env;
+use Wep\Router\Route;
 
 trait Boot
 {
@@ -129,7 +129,7 @@ trait Boot
         define("APP_URL", getenv("APP_URL"));
 
         // Core
-        define("CORE_NAMESPACE", "App\\Core\\");
+        define("CORE_NAMESPACE", "Wep\\");
         define("DEFAULT_VIEW_CONTROLLER", CORE_NAMESPACE . "View\\View@handle");
 
         // Custom

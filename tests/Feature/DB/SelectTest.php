@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\DB;
+use Wep\DB;
 
 beforeEach(fn() => freshDatabase());
 

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Router\Middlewares;
+namespace Wep\Router\Middlewares;
 
-use App\Core\Router\Http\RouterHttpRequest;
-use App\Core\Router\Middlewares\MiddlewareRoute;
+use Wep\Router\Http\RouterHttpRequest;
+use Wep\Router\Middlewares\MiddlewareRoute;
 
 class MiddlewareCollection
 {

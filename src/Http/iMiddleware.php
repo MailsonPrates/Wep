@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Http;
+namespace Wep\Http;
 
 interface iMiddleware 
 {

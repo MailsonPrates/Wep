@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\DB\Query\Builders\Identifier;
-use App\Core\DB\Query\Raw;
+use Wep\DB\Query\Builders\Identifier;
+use Wep\DB\Query\Raw;
 
 describe('Identifier::quote', function () {
 

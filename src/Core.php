@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Engine\Boot;
-use App\Core\Engine\Module;
+use Wep\Engine\Boot;
+use Wep\Engine\Module;
 
 class Core
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Router\Traits;
+namespace Wep\Router\Traits;
 
-use App\Core\Router\RouteGroups;
-use App\Core\Router\Middlewares\MiddlewareRoute;
+use Wep\Router\RouteGroups;
+use Wep\Router\Middlewares\MiddlewareRoute;
 
 trait RouteUtils
 {
@@ -14,7 +14,7 @@ trait RouteUtils
      * Method responsible for creating a 
      * new instance of RouteGroups.
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     private static function newRouteGroup()
     {
@@ -44,7 +44,7 @@ trait RouteUtils
      * 
      * @param string $namespace
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public static function namespace(String $namespace)
     {
@@ -57,7 +57,7 @@ trait RouteUtils
      * 
      * @param string $prefix
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public static function prefix(String $prefix)
     {
@@ -70,7 +70,7 @@ trait RouteUtils
      * 
      * @param string $middleware
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public static function middleware($middleware)
     {
@@ -83,7 +83,7 @@ trait RouteUtils
      * 
      * @param string $name
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public static function name(String $name)
     {

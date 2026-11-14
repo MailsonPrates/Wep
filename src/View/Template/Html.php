@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\View\Template;
+namespace Wep\View\Template;
 
-use App\Core\View\Template\HtmlElements;
+use Wep\View\Template\HtmlElements;
 
 /**
  * Class responsável por montar um html

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Router\Helpers;
+namespace Wep\Router\Helpers;
 
-use App\Core\Router\Route;
+use Wep\Router\Route;
 
 class Functions
 {
@@ -10,7 +10,7 @@ class Functions
      * Method responsible for returning the
      * active RouteCollection instance.
      * 
-     * @return null|\App\Core\Router\RouteCollection
+     * @return null|\Wep\Router\RouteCollection
      */
     protected function collection()
     {
@@ -22,7 +22,7 @@ class Functions
      * 
      * @param string $name
      * 
-     * @return null|\App\Core\Router\RouteManager
+     * @return null|\Wep\Router\RouteManager
      */
     public function get(String $routerName)
     {
@@ -62,7 +62,7 @@ class Functions
      * Method responsible for returning the
      * current route.
      * 
-     * @return null|\App\Core\Router\RouteManager
+     * @return null|\Wep\Router\RouteManager
      */
     public function current()
     {

@@ -1,20 +1,20 @@
 <?php
 
-namespace App\Core\DB;
+namespace Wep\DB;
 
-use App\Core\DB\Query\Executor;
-use App\Core\DB\Query\Formatter;
-use App\Core\DB\Query\Methods\Filters;
-use App\Core\DB\Query\Methods\Conditional;
-use App\Core\DB\Query\Methods\Select;
-use App\Core\DB\Query\Methods\Insert;
-use App\Core\DB\Query\Methods\Update;
-use App\Core\DB\Query\Methods\Delete;
-use App\Core\DB\Query\Methods\Joins;
-use App\Core\DB\Query\Methods\Others;
-use App\Core\DB\Query\Methods\Aliases;
-use App\Core\DB\Query\Helpers;
-use App\Core\Response;
+use Wep\DB\Query\Executor;
+use Wep\DB\Query\Formatter;
+use Wep\DB\Query\Methods\Filters;
+use Wep\DB\Query\Methods\Conditional;
+use Wep\DB\Query\Methods\Select;
+use Wep\DB\Query\Methods\Insert;
+use Wep\DB\Query\Methods\Update;
+use Wep\DB\Query\Methods\Delete;
+use Wep\DB\Query\Methods\Joins;
+use Wep\DB\Query\Methods\Others;
+use Wep\DB\Query\Methods\Aliases;
+use Wep\DB\Query\Helpers;
+use Wep\Response;
 use InvalidArgumentException;
 
 /**

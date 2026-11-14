@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Response;
-use App\Core\Router\Http\RouterHttpRequest;
+use Wep\Response;
+use Wep\Router\Http\RouterHttpRequest;
 use Exception;
 
 trait Controller

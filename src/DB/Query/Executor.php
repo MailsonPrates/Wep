@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\DB\Query;
+namespace Wep\DB\Query;
 
-use App\Core\Response;
+use Wep\Response;
 use InvalidArgumentException;
 use PDO;
 use PDOException;

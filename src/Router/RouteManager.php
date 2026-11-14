@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\Http\RouterHttpRequest;
-use App\Core\Router\Traits\RouteManagerUtils;
-use App\Core\Router\Middlewares\MiddlewareCollection;
+use Wep\Router\Http\RouterHttpRequest;
+use Wep\Router\Traits\RouteManagerUtils;
+use Wep\Router\Middlewares\MiddlewareCollection;
 
 class RouteManager
 {
@@ -74,7 +74,7 @@ class RouteManager
      * Method responsible for returning
      * the current group.
      * 
-     * @return null|\App\Core\Router\RouteGroups
+     * @return null|\Wep\Router\RouteGroups
      */
     public function getGroup()
     {
@@ -345,7 +345,7 @@ class RouteManager
     /**
      * Get the request route.
      * 
-     * @return \App\Core\Router\Http\RouterHttpRequest
+     * @return \Wep\Router\Http\RouterHttpRequest
      */
     public function request(): RouterHttpRequest
     {
@@ -355,7 +355,7 @@ class RouteManager
     /**
      * Get the middleware route.
      * 
-     * @return null|\App\Core\Router\Middlewares\MiddlewareCollection
+     * @return null|\Wep\Router\Middlewares\MiddlewareCollection
      */
     public function getMiddleware()
     {
@@ -377,7 +377,7 @@ class RouteManager
      * 
      * @param string|array $middleware
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public function middleware($middleware): RouteManager
     {

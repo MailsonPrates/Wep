@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core\View;
+namespace Wep\View;
 
-use App\Core\Core;
-use App\Core\Str;
-use App\Core\View\Template\Template;
+use Wep\Core;
+use Wep\Str;
+use Wep\View\Template\Template;
 
 class View
 {

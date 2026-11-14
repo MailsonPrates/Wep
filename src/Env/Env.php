@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Core\Env;
+namespace Wep\Env;
 
-use App\Core\Env\AbstractProcessor;
-use App\Core\Env\BooleanProcessor;
-use App\Core\Env\QuoteProcessor;
-use App\Core\Response;
+use Wep\Env\AbstractProcessor;
+use Wep\Env\BooleanProcessor;
+use Wep\Env\QuoteProcessor;
+use Wep\Response;
 use Exception;
 
 /**

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Http;
+namespace Wep\Http;
 
-use App\Core\Http\Methods;
-use App\Core\Response;
+use Wep\Http\Methods;
+use Wep\Response;
 
 class HttpRequest {
 

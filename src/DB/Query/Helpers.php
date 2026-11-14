@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query;
+namespace Wep\DB\Query;
 
 trait Helpers
 {

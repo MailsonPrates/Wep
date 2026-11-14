@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Env;
+namespace Wep\Env;
 
-use App\Core\Env\IProcessor;
+use Wep\Env\IProcessor;
 
 abstract class AbstractProcessor implements IProcessor
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Env;
+namespace Wep\Env;
 
 interface IProcessor
 {

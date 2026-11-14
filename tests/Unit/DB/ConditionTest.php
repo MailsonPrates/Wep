@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\DB\Query\Builders\Condition;
-use App\Core\DB\Query\Builders\Placeholders;
+use Wep\DB\Query\Builders\Condition;
+use Wep\DB\Query\Builders\Placeholders;
 
 function cond(string $type, string $col, string $operator, $value): array
 {

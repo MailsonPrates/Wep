@@ -45,17 +45,17 @@ colunas e tabelas são validados e escapados.
 | Banco | MySQL / MariaDB (via `pdo_mysql`) |
 | PHP | 8.0 ou superior |
 | Estilos de uso | **Encadeado** (`DB::table('t')->where(...)->get()`) e **verboso** (um array com todas as opções) |
-| Entrada pública | Classe estática `App\Core\DB` |
-| Dependências externas ao módulo | `App\Core\Response`, `App\Core\Core`, `App\Core\Singleton`, `App\Core\Obj` |
+| Entrada pública | Classe estática `Wep\DB` |
+| Dependências externas ao módulo | `Wep\Response`, `Wep\Core`, `Wep\Singleton`, `Wep\Obj` |
 
-Namespaces: `App\Core\DB` (fachada), `App\Core\DB\…` (Handler, Connection), `App\Core\DB\Query\…` (internos).
+Namespaces: `Wep\DB` (fachada), `Wep\DB\…` (Handler, Connection), `Wep\DB\Query\…` (internos).
 
 ---
 
 ## 2. Início rápido
 
 ```php
-use App\Core\DB;
+use Wep\DB;
 
 // SELECT
 $r = DB::table('users')
@@ -159,7 +159,7 @@ Essas validações impedem *DSN injection* (ex.: `db_name = "x;host=outro-servid
 
 ## 4. Formato de retorno
 
-O módulo usa `App\Core\Response::success($data, $meta)` e `Response::error($message)`, que devolvem um objeto:
+O módulo usa `Wep\Response::success($data, $meta)` e `Response::error($message)`, que devolvem um objeto:
 
 - sucesso: `{ error: false, data: ..., ...meta }`. As chaves de `meta` (`last_id`, `affected_rows`, `stmt`...)
   ficam **no nível raiz** do objeto, por exemplo `$r->last_id`;
@@ -898,7 +898,7 @@ echo $q->raw;
 
 ## 23. Referência rápida
 
-### 23.1 `App\Core\DB` (estático)
+### 23.1 `Wep\DB` (estático)
 
 | Método | Descrição |
 |---|---|
@@ -950,7 +950,7 @@ echo $q->raw;
 ## 24. Estrutura de arquivos e testes
 
 ```
-DB.php                         Fachada estática (App\Core\DB)
+DB.php                         Fachada estática (Wep\DB)
 DB/
   Connection.php               Abre o PDO (validação de DSN, opções)
   Handler.php                  API encadeável; monta e executa as consultas

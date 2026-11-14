@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\DB;
+use Wep\DB;
 
 beforeEach(fn() => freshDatabase());
 afterEach(fn() => DB::setConfig(['debug' => false, 'expose_errors' => false]));

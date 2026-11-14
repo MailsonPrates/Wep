@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query\Builders;
+namespace Wep\DB\Query\Builders;
 
 /**
  * Coleta os valores de uma query e devolve placeholders sequenciais (:p1, :p2...).

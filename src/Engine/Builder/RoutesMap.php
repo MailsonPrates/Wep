@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Core\Engine\Builder;
+namespace Wep\Engine\Builder;
 
-use App\Core\Core;
-use App\Core\Engine\Builder\Warning;
-use App\Core\Obj;
-use App\Core\Str;
-use App\Core\Engine\Builder\Vendor\Vendor;
-use App\Core\Engine\Module;
+use Wep\Core;
+use Wep\Engine\Builder\Warning;
+use Wep\Obj;
+use Wep\Str;
+use Wep\Engine\Builder\Vendor\Vendor;
+use Wep\Engine\Module;
 
 class RoutesMap
 {
@@ -186,7 +186,7 @@ class RoutesMap
         /**
          * Fallback
          */
-        $fallback_class = 'App\Core\View\View';
+        $fallback_class = 'Wep\View\View';
         $fallback_method = 'handle';
         $fallback = Core::config("fallback") ?? '';
 
@@ -222,7 +222,7 @@ class RoutesMap
 
         // BACK
         $back = ['<?php'];
-        $back[] = "use App\Core\Router\Route;";
+        $back[] = "use Wep\Router\Route;";
         $back[] = $alert;
         $back[] = self::getMiddlewaresSets();
         $back[] = join("\r", $buildMaps->backend);

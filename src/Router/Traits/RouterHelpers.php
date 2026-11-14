@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Router\Traits;
+namespace Wep\Router\Traits;
 
-use App\Core\Router\RouteGroups;
+use Wep\Router\RouteGroups;
 
 trait RouterHelpers
 {

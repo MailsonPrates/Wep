@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Http;
+namespace Wep\Http;
 
-use App\Core\Http\Request;
+use Wep\Http\Request;
 
 trait Methods
 {

@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-namespace App\Core;
+namespace Wep;
 
 /**
  * Singleton Pattern.

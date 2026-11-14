@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Engine\Builder\Snippets;
+namespace Wep\Engine\Builder\Snippets;
 
-use App\Core\File;
-use App\Core\Obj;
+use Wep\File;
+use Wep\Obj;
 use Exception;
 
 class Module
@@ -152,7 +152,7 @@ class Module
             ' ',
             'namespace '.$namespace.';',
             ' ',
-            'use App\Core\Model;',
+            'use Wep\Model;',
             ' ',
             '/**',
             ' * Classe model responsável por implementar métodos',
@@ -181,7 +181,7 @@ class Module
             ' ',
             "namespace ".$namespace.";",
             ' ',
-            'use App\Core\Controller;',
+            'use Wep\Controller;',
             ' ',
             '/**',
             ' * Classe controller responsável por implementar métodos',
@@ -249,7 +249,7 @@ class Module
             " ",
             "namespace $namespace;",
             " ",
-            "use App\Core\Vendor;",
+            "use Wep\Vendor;",
             " ",
             "/**",
             " * Classe model responsável por implementar",
@@ -278,7 +278,7 @@ class Module
             " ",
             "namespace $namespace;",
             " ",
-            "use App\Core\Controller;",
+            "use Wep\Controller;",
             " ",
             "/**",
             " * Classe controller responsável por implementar métodos",
