@@ -3,6 +3,7 @@
 namespace App\Core\DB;
 
 use App\Core\DB\Query\Executor;
+use App\Core\DB\Query\Formatter;
 use App\Core\DB\Query\Methods\Filters;
 use App\Core\DB\Query\Methods\Conditional;
 use App\Core\DB\Query\Methods\Select;
@@ -14,6 +15,7 @@ use App\Core\DB\Query\Methods\Others;
 use App\Core\DB\Query\Methods\Aliases;
 use App\Core\DB\Query\Helpers;
 use App\Core\Response;
+use InvalidArgumentException;
 
 /**
  * Class monta as query strings de cada metodo
@@ -70,7 +72,7 @@ class Handler
     private $raw = false;
 
     /**
-     * @var \PDO
+     * @var \PDO|null
      */
     public $pdo;
 
@@ -80,7 +82,7 @@ class Handler
     private $config;
 
     /**
-     * @param \PDO $pdo
+     * @param \PDO|null $pdo
      * @param array $config
      * @param string $config->table
      */
@@ -93,94 +95,106 @@ class Handler
 
     public function get($props=null)
     {
-        $fields = is_array($props) ? $props : (func_get_args() ?? null);
-        $is_verbose = $this->isAssoc($fields);
+        $fields = is_array($props) ? $props : func_get_args();
 
-        if ( $is_verbose ){
-            $this->setVerbose($props);
-            $fields = $this->fields;
-        }
+        return $this->run(function() use ($props, $fields) {
 
-        $selectQuery = new Select([
-            "filters" => $this->filters,
-            "conditions" => $this->conditions,
-            "joins" => $this->joins,
-            "table" => $this->config->table
-        ]);
+            if ( $this->isAssoc($fields) ){
+                $this->setVerbose($props);
+                $fields = $this->fields;
+            }
 
-        $query = $selectQuery->build($fields);
+            $selectQuery = new Select([
+                "filters" => $this->filters,
+                "conditions" => $this->conditions,
+                "joins" => $this->joins,
+                "table" => $this->config->table
+            ]);
 
-        return $this->execute($query);
+            return $selectQuery->build($fields);
+        });
     }
 
     public function insert($fields=[])
     {
-        $is_verbose = !empty($fields['fields']);
+        return $this->run(function() use ($fields) {
 
-        if ( $is_verbose ){
+            $is_verbose = !empty($fields['fields']);
 
-            if ( !empty($fields['onDuplicateUpdate']) ){
-                $this->onDuplicateUpdate($fields['onDuplicateUpdate']);
+            if ( $is_verbose ){
+
+                if ( !empty($fields['onDuplicateUpdate']) ){
+                    $this->onDuplicateUpdate($fields['onDuplicateUpdate']);
+                }
+
+                $fields = $fields['fields'];
             }
 
-            $fields = $fields['fields'];
-        }
+            if ( empty($fields) ) throw new InvalidArgumentException("Invalid params");
 
-        if ( empty($fields) ) return Response::error("Invalid params");
+            $insertQuery = new Insert([
+                "table" => $this->config->table,
+                "duplicateUpdate" => $this->duplicateUpdate
+            ]);
 
-        $insertQuery = new Insert([
-            "table" => $this->config->table,
-            "duplicateUpdate" => $this->duplicateUpdate
-        ]);
-
-        $query = $insertQuery->build($fields);
-
-        return $this->execute($query);
+            return $insertQuery->build($fields);
+        });
     }
 
     public function update($key, $value=null)
     {
-        $fields = is_array($key) ? $key : [$key => $value];
-        $is_verbose = $this->isAssoc($fields) && !empty($fields['where']);
+        return $this->run(function() use ($key, $value) {
 
-        if ( $is_verbose ){
-            $this->setVerbose($key);
-            $fields = $this->fields;
-        }
+            $fields = is_array($key) ? $key : [$key => $value];
+            $is_verbose = $this->isAssoc($fields) && !empty($fields['where']);
 
-        if ( empty($this->conditions) ) return Response::error("Insecure update, no where clause found");
+            if ( $is_verbose ){
+                $this->setVerbose($key);
+                $fields = $this->fields;
+            }
 
-        $updateQuery = new Update([
-            "conditions" => $this->conditions,
-            "table" => $this->config->table
-        ]);
-        
-        $query = $updateQuery->build($fields);
+            if ( empty($this->conditions) ) throw new InvalidArgumentException("Insecure update, no where clause found");
 
-        return $this->execute($query);
+            $updateQuery = new Update([
+                "conditions" => $this->conditions,
+                "table" => $this->config->table
+            ]);
+
+            return $updateQuery->build($fields);
+        });
     }
 
     public function delete($key=null, $value=null)
     {
-        if ( $key ){
-            is_array($key)
-                ? (isset($key['where']) 
-                    ? $this->where($key['where']) 
-                    : $this->where($key)
-                  ) 
-                : $this->where($key, $value);
-        }
+        return $this->run(function() use ($key, $value) {
 
-        if ( empty($this->conditions) ) return Response::error("Insecure delete, no where clause found");
+            if ( $key ){
 
-        $updateQuery = new Delete([
-            "conditions" => $this->conditions,
-            "table" => $this->config->table
-        ]);
+                if ( !is_array($key) ){
+                    $this->where($key, $value);
 
-        $query = $updateQuery->build();
+                } elseif ( isset($key['where']) ){
 
-        return $this->execute($query);
+                    // mesmas formas do update verboso: ['id', 1] ou [['id', 1], ['age', '>', 3]] ou ['id' => 1]
+                    $where = $key['where'];
+                    $is_bulk = is_array($where) && ((isset($where[0]) && is_array($where[0])) || $this->isAssoc($where));
+
+                    $is_bulk ? $this->where($where) : call_user_func_array([$this, 'where'], (array) $where);
+
+                } else {
+                    $this->where($key);
+                }
+            }
+
+            if ( empty($this->conditions) ) throw new InvalidArgumentException("Insecure delete, no where clause found");
+
+            $deleteQuery = new Delete([
+                "conditions" => $this->conditions,
+                "table" => $this->config->table
+            ]);
+
+            return $deleteQuery->build();
+        });
     }
 
     public function debug($bool=true)
@@ -190,34 +204,55 @@ class Handler
     }
 
     /**
+     * Monta a query e executa. Erros de montagem (identificador/operador inválido,
+     * update/delete sem where...) viram Response::error, como já era o padrão.
+     *
+     * @param callable $build deve retornar o objeto da query
+     */
+    private function run(callable $build)
+    {
+        try {
+            $query = $build();
+        } catch (InvalidArgumentException $e) {
+            $this->resetProps();
+            return Response::error($e->getMessage());
+        }
+
+        return $this->execute($query);
+    }
+
+    /**
      * @param object $query
-     * @param string $query->type
      * @param string $query->string
-     * @param array $query->fields_list
+     * @param array $query->placeholders
      */
     private function execute($query)
     {
-        $pdo = $this->pdo ?? null;
-
         if ( isset($query->error) ) return $query;
 
         $fields = isset($query->placeholders) ? (array)$query->placeholders : [];
 
-        $execute = Executor::execute($pdo, $query->string, $fields, [
-            "fetch" => $this->fetch_mode,
-            "raw" => $this->raw,
-            'debug' => $this->is_debug
-        ]);
+        try {
 
-        if ( $this->is_debug ){
-            $query->raw = $this::parseQueryRaw($query->string, $query->placeholders);
-            $query->execute = $execute;
-            return $query;
+            $execute = Executor::execute($this->pdo ?? null, $query->string, $fields, [
+                "fetch" => $this->fetch_mode,
+                "raw" => $this->raw,
+                'debug' => $this->is_debug
+            ]);
+
+            if ( $this->is_debug ){
+                $query->raw = Formatter::interpolate($query->string, $fields);
+                $query->execute = $execute;
+                return $query;
+            }
+
+            return $execute;
+
+        } finally {
+
+            // mesmo com erro/exceção o estado não vaza para a próxima query
+            if ( !$this->is_debug ) $this->resetProps();
         }
-
-        $this->resetProps();
-
-        return $execute;
     }
 
 }

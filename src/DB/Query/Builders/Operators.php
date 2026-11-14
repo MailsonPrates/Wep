@@ -2,235 +2,140 @@
 
 namespace App\Core\DB\Query\Builders;
 
-use App\Core\Obj;
+use InvalidArgumentException;
 
 class Operators
 {
-
     /**
-     * Registra aliases dos métodos de cada operador
+     * Operadores permitidos e o método que monta cada um.
+     * Qualquer operador fora dessa lista é rejeitado.
      */
-    private static $operator_methods_aliases = [
-        
+    private const OPERATORS = [
+
         // operadores de lógica
-        "=" => "logic",
+        "="  => "logic",
         "!=" => "logic",
-        ">" => "logic",
+        "<>" => "logic",
+        ">"  => "logic",
         ">=" => "logic",
-        "<" => "logic",
+        "<"  => "logic",
         "<=" => "logic",
 
         // operadores de valor
-        "in" => "in",
-        "not in" => "in",
-        "like" => "like",
-        "not like" => "like",
-        "between" => "between",
+        "in"          => "in",
+        "not in"      => "in",
+        "like"        => "like",
+        "not like"    => "like",
+        "between"     => "between",
         "not between" => "between",
 
         // operadores de tipo
-        "is null" => "null",
-        "is not null" => "null",
-        "is not empty" => "null"
-
+        "is null"      => "nullCheck",
+        "is not null"  => "nullCheck",
+        "is not empty" => "nullCheck",
     ];
 
     /**
+     * Monta o trecho SQL de uma condição, registrando os valores em $bag.
+     *
      * @param object $props
+     * @param string $props->col
      * @param string $props->operator
-     * @param string|array|int $props->value
-     * @param string $props->type
-     * 
-     * @return object
+     * @param mixed  $props->value
+     * @param Placeholders $bag
+     *
+     * @return string
+     * @throws InvalidArgumentException
      */
-    static public function build($props)
+    public static function build($props, Placeholders $bag): string
     {
-        $operator_method_name = self::$operator_methods_aliases[$props->operator] ?? null;
+        $operator = $props->operator ?? null;
+        $method = is_string($operator) ? (self::OPERATORS[$operator] ?? null) : null;
 
-        if ( !$operator_method_name ){
-            // TODO: lidar melhor com esse error
-            exit();
+        if (!$method) {
+            $safe = is_string($operator) ? substr(preg_replace('/[^\w <>=!]/', '?', $operator), 0, 20) : gettype($operator);
+            throw new InvalidArgumentException("Invalid operator \"$safe\"");
         }
 
-        $call_operator_method = call_user_func_array(
-            [self::class, $operator_method_name],
-            [$props]
-        );
+        $col = Identifier::quote($props->col);
 
-        return $call_operator_method;
+        switch ($method) {
+            case 'logic':     return self::logic($col, $props, $bag);
+            case 'in':        return self::in($col, $props, $bag);
+            case 'like':      return self::like($col, $props, $bag);
+            case 'between':   return self::between($col, $props, $bag);
+            default:          return self::nullCheck($col, $props);
+        }
     }
 
-
-    /**
-     * @param object $props
-     * @param string $props->operator
-     * @param string|array|int|float $props->value
-     * @param string $props->type
-     * 
-     * @return object
-     */
-    static private function logic($props)
+    private static function logic(string $col, $props, Placeholders $bag): string
     {
-        $id = self::getPlaceholderId($props->col, $props->type);
+        self::assertScalar($props->value, $props->operator);
 
-        $placeholder_value = [];
-        $placeholder_value[$id] = $props->value;
-
-        return Obj::set([
-            'string' => "$props->col $props->operator :$id",
-            'string_raw' => "$props->col $props->operator $props->value",
-            'placeholders' => $placeholder_value
-        ]);
+        return "$col $props->operator " . $bag->add($props->value);
     }
 
-    /**
-     * @param string $col
-     * @param string $type
-     * 
-     * @return string
-     */
-    static private function getPlaceholderId($col, $type)
+    private static function in(string $col, $props, Placeholders $bag): string
     {
-        $id = join("_", [$col, $type, uniqid()]);
-        $id = str_replace(".", "_", $id);
-
-        return $id;
-    }
-
-    /**
-     * @param string $operator
-     * @param string|array|int|float $value
-     * @return string
-     */
-    static private function type($value="", $operator="")
-    {
-        return strtoupper($operator);
-    }
-
-    /**
-     * @param object $props
-     * @param string $props->operator
-     * @param string|array|int|float $props->value
-     * @param string $props->type
-     * 
-     * @return object
-     */
-    static private function in($props)
-    {
-        $list = is_array($props->value) ? $props->value : [$props->value];
         $has_not = $props->operator === "not in";
+        $list = is_array($props->value) ? array_values($props->value) : [$props->value];
 
-        $in_list = [];
-        $in_list_raw = [];
-        $placeholders = [];
-
-        foreach( $list as $value ){
-            $id = uniqid($has_not ? 'in_not_' : 'in_');
-            $in_list[] = ":$id";
-            $in_list_raw[] = $value;
-            $placeholders[$id] = $value;
+        // IN() vazio é erro de sintaxe no MySQL: "IN vazio" nunca casa, "NOT IN vazio" sempre casa
+        if (empty($list)) {
+            return $has_not ? "1 = 1" : "1 = 0";
         }
 
-        $in_type = $has_not ? "NOT IN" : "IN";
-        $query_string = $props->col . " " . $in_type. "(" . join(',', $in_list) . ")";
-        $query_string_raw = $props->col . " " . $in_type. "(" . join(',', $in_list_raw) . ")";
+        $marks = [];
 
-        return Obj::set([
-            'string' => $query_string,
-            'string_raw' => $query_string_raw,
-            'placeholders' => $placeholders
-        ]);
+        foreach ($list as $value) {
+            self::assertScalar($value, $props->operator);
+            $marks[] = $bag->add($value);
+        }
+
+        return $col . ($has_not ? " NOT IN" : " IN") . "(" . implode(",", $marks) . ")";
     }
 
-    /**
-     * @param object $props
-     * @param string $props->operator
-     * @param string|array|int|float $props->value
-     * @param string $props->type
-     * 
-     * @return object
-     */
-    static private function like($props)
+    private static function like(string $col, $props, Placeholders $bag): string
     {
-        $has_not = $props->operator === "not like";
-       
-        $like_type = ($has_not ? "NOT LIKE" : "LIKE");
-        $id = uniqid($has_not ? 'not_like_' : 'like_');
-        $query_string = $props->col ." ". $like_type . " :$id";
-        $query_string_raw = $props->col ." ". $like_type . " ". $props->value;
+        self::assertScalar($props->value, $props->operator);
 
-        $placeholders = [];
-        $placeholders[$id] = $props->value;
+        $type = $props->operator === "not like" ? "NOT LIKE" : "LIKE";
 
-        return Obj::set([
-            'string' => $query_string,
-            'string_raw' => $query_string_raw,
-            'placeholders' => $placeholders
-        ]);
+        return "$col $type " . $bag->add($props->value);
     }
 
-    /**
-     * @param object $props
-     * @param string $props->operator
-     * @param string|array|int|float $props->value
-     * @param string $props->type
-     * 
-     * @return object
-     */
-    static private function between($props)
+    private static function between(string $col, $props, Placeholders $bag): string
     {
-        $has_not = $props->operator === "not between";
-        $values = $props->value ?? [];
-        $value_start = $values[0] ?? "";
-        $value_end = $values[1] ?? "";
-       
-        $between_type = ($has_not ? "NOT BETWEEN" : "BETWEEN");
+        $values = $props->value;
 
-        $start_id = uniqid('start_');
-        $end_id = uniqid('end_');
+        if (!is_array($values) || count($values) !== 2) {
+            throw new InvalidArgumentException("Operator \"$props->operator\" requires [start, end]");
+        }
 
-        $query_string = $props->col ." ". $between_type . " :$start_id AND :$end_id";
-        $query_string_raw = $props->col ." ". $between_type . " $value_start AND $value_end";
+        $values = array_values($values);
+        self::assertScalar($values[0], $props->operator);
+        self::assertScalar($values[1], $props->operator);
 
-        $placeholders = [];
-        $placeholders[$start_id] = $value_start;
-        $placeholders[$end_id] = $value_end;
+        $type = $props->operator === "not between" ? "NOT BETWEEN" : "BETWEEN";
 
-        return Obj::set([
-            'string' => $query_string,
-            'string_raw' => $query_string_raw,
-            'placeholders' => $placeholders
-        ]);
+        return "$col $type " . $bag->add($values[0]) . " AND " . $bag->add($values[1]);
     }
 
-    /**
-     * @param object $props
-     * @param string $props->operator
-     * @param string $props->type
-     * 
-     * @return object
-     */
-    static private function null($props)
+    private static function nullCheck(string $col, $props): string
     {
         $types = [
-            "is null" => "IS NULL",
-            "is not null" => "IS NOT NULL",
-            "is not empty" => "<>''"
+            "is null"      => "IS NULL",
+            "is not null"  => "IS NOT NULL",
+            "is not empty" => "<> ''",
         ];
-        
-        /** @todo tratar  */
-        $null_type = $types[$props->operator];
 
-        $query_string = $props->col ." ". $null_type;
-        $query_string_raw = $query_string;
-
-        $placeholders = [];
-
-        return Obj::set([
-            'string' => $query_string,
-            'string_raw' => $query_string_raw,
-            'placeholders' => $placeholders
-        ]);
+        return "$col " . $types[$props->operator];
     }
 
+    private static function assertScalar($value, string $operator): void
+    {
+        if (is_array($value) || (is_object($value) && !method_exists($value, '__toString'))) {
+            throw new InvalidArgumentException("Invalid value for operator \"$operator\"");
+        }
+    }
 }

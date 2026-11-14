@@ -4,7 +4,10 @@ namespace App\Core\DB\Query\Methods;
 
 use App\Core\DB\Query\Methods\MethodInterface;
 use App\Core\DB\Query\Builders\Condition;
+use App\Core\DB\Query\Builders\Identifier;
+use App\Core\DB\Query\Builders\Placeholders;
 use App\Core\Obj;
+use InvalidArgumentException;
 
 class Update implements MethodInterface
 {
@@ -31,38 +34,30 @@ class Update implements MethodInterface
         $this->conditions = $props->conditions;
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     public function build(array $fields=[])
     {
-        // Inicia montagem da query
-        $query = "UPDATE `".$this->table . "`";
-        $placeholders = [];
-        $fields_query = [];
-
-        // FIELDS
-        $id = uniqid("_");
-
-        foreach( $fields as $col => $value ){
-
-            $key = $col.$id;
-
-            $fields_query[] = "$col = :$key";
-            $placeholders[$key] = $value;
+        if ( empty($fields) ){
+            throw new InvalidArgumentException("Invalid params");
         }
 
-        $query .= " SET ".join(", ", $fields_query);
+        $bag = new Placeholders();
+
+        // FIELDS
+        $sets = [];
+
+        foreach( $fields as $col => $value ){
+            $sets[] = Identifier::quote($col) . " = " . $bag->add($value);
+        }
 
         // CONDITIONS
-        $conditions_query = Condition::buildQuery($this->conditions);
-        $placeholders = array_merge($placeholders, $conditions_query->placeholders ?? []);
+        $conditions_query = Condition::buildQuery($this->conditions, $bag);
 
-        $query .= " ".$conditions_query->string;
-
-        $response = Obj::set([
-            'string' => $query,
-            "placeholders" => $placeholders,
-            //'conditions' => $this->conditions
+        return Obj::set([
+            'string' => "UPDATE " . Identifier::quote($this->table) . " SET " . implode(", ", $sets) . " " . $conditions_query->string,
+            "placeholders" => $bag->all()
         ]);
-
-        return $response;
     }
 }

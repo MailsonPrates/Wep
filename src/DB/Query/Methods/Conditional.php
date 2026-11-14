@@ -1,141 +1,118 @@
-<?php 
+<?php
 
 namespace App\Core\DB\Query\Methods;
 
-use App\Core\Obj;
+use InvalidArgumentException;
 
 trait Conditional
 {
 
     private $type_operators = ["is null", "is not null", "is not empty"];
 
+    /**
+     * @example
+     * ->where("id", 1);
+     * ->where("age", ">", 18);
+     * ->where("deleted_at", "is null");
+     * ->where([["id", 1], ["age", ">", 18]]);
+     * ->where(["status" => "on", "type" => "admin"]);
+     */
     public function where()
     {
-        $args_count = func_num_args();
-
-        if ( !$args_count ) return $this;
-
-        $arg_0 = func_get_arg(0);
-        $arg_1 = $args_count > 1 ? func_get_arg(1) : "";
-        $arg_2 = $args_count > 2 ? func_get_arg(2) : "";
-
-        $is_bulk = $args_count === 1 && is_array($arg_0);
-
-        /*echo json_encode([
-            'type' => "where", 
-            'args' => func_get_args(), 
-            'count' => $args_count, 
-            'isBulk' => $is_bulk, 
-            'arg0' => $arg_0, 
-            'arg1' => $arg_1, 
-            'arg2' => $arg_2
-        ]);
-
-       exit();*/
-
-        $this->buildConditions("where", $is_bulk, $arg_0, $arg_1, $arg_2);
-
+        $this->addConditions("where", func_get_args());
         return $this;
     }
-    
+
     public function or()
     {
-        $args_count = func_num_args();
+        $args = func_get_args();
+        $is_bulk = count($args) === 1 && is_array($args[0]);
 
-        if ( !$args_count ) return $this;
-
-        $arg_0 = func_get_arg(0);
-        $arg_1 = $args_count > 1 ? func_get_arg(1) : "";
-        $arg_2 = $args_count > 2 ? func_get_arg(2) : "";
-
-        $is_bulk = $args_count === 1 && is_array($arg_0);
-        $type = $is_bulk ? "orAnd" : "or";
-
-        $this->buildConditions($type, $is_bulk , $arg_0, $arg_1, $arg_2);
-
+        $this->addConditions($is_bulk ? "orAnd" : "or", $args);
         return $this;
     }
 
     public function andOr()
     {
-        $args_count = func_num_args();
-
-        if ( !$args_count ) return $this;
-
-        $arg_0 = func_get_arg(0);
-        $arg_1 = $args_count > 1 ? func_get_arg(1) : "";
-        $arg_2 = $args_count > 2 ? func_get_arg(2) : "";
-
-        $is_bulk = $args_count === 1 && is_array($arg_0);
-        $type = "andOr";
-
-        $this->buildConditions($type, $is_bulk , $arg_0, $arg_1, $arg_2);
-
+        $this->addConditions("andOr", func_get_args());
         return $this;
     }
 
     /**
      * Monta lista de condição
-     * @param string $type where|or
-     * @param bool $is_bulk
-     * @param string|array $arg_0
-     * @param string $arg_1
-     * @param string|array|int|null $arg_2
-     * 
+     * @param string $type where|or|orAnd|andOr
+     * @param array $args argumentos recebidos pelo método público
+     *
      * @return void
      */
-    private function buildConditions($type, $is_bulk, $arg_0,  $arg_1,  $arg_2)
+    private function addConditions($type, array $args)
     {
+        $args_count = count($args);
 
-        if ( $is_bulk ){
-            
-            $bulk = $arg_0;
+        if (!$args_count) return;
 
-            foreach( $bulk as $item ){
+        $is_bulk = $args_count === 1 && is_array($args[0]);
 
-                $col = $item[0];
-                $operator = $item[1] ?? "";
-                $value = $item[2] ?? "";
-
-                $condition = $this->getCondition($type, $col, $operator, $value);
-                $this->setCondition($condition);
-            }
-
+        if ( !$is_bulk ){
+            $this->setCondition($this->getCondition($type, $args[0], $args[1] ?? "", $args[2] ?? "", $args_count > 2));
             return;
         }
 
-        $col = $arg_0;
-        $operator =  $arg_1 ?? "";
-        $value = $arg_2 ?? "";
+        foreach( $args[0] as $key => $item ){
 
-        $condition = $this->getCondition($type, $col, $operator, $value);
-        $this->setCondition($condition);
-        return;
+            // ["status" => "on"]
+            if ( is_string($key) && !is_array($item) ){
+                $this->setCondition($this->getCondition($type, $key, $item, "", false));
+                continue;
+            }
+
+            // ["status" => [1, 2]] ou [["status", "on"], ["age", ">", 18]]
+            if ( !is_array($item) ){
+                throw new InvalidArgumentException("Invalid condition");
+            }
+
+            $has_key = is_string($key);
+            $col = $has_key ? $key : ($item[0] ?? "");
+            $operator = $has_key ? $item : ($item[1] ?? "");
+            $value = $has_key ? "" : ($item[2] ?? "");
+            $has_value = !$has_key && count($item) > 2;
+
+            $this->setCondition($this->getCondition($type, $col, $operator, $value, $has_value));
+        }
     }
 
     /**
      * Monta uma condição para adicionar na lista de condição
      * @param string $type
      * @param string $col
-     * @param string $operator
+     * @param string|array $operator
      * @param string|array|int|null $value
-     * 
-     * @return object
+     * @param bool $has_value se o valor foi informado de fato (3º argumento)
+     *
+     * @return array
      */
-    private function getCondition($type, $col, $operator, $value)
+    private function getCondition($type, $col, $operator, $value, $has_value)
     {
-        $is_type_operator = in_array(strtolower($operator), $this->type_operators);
-        $has_omitted_operator = !$value && !$is_type_operator;
+        $operator_name = is_string($operator) ? strtolower(trim($operator)) : $operator;
+        $is_type_operator = is_string($operator_name) && in_array($operator_name, $this->type_operators, true);
 
-        $value = $has_omitted_operator ? $operator : $value;
-        $operator = $has_omitted_operator ? "=" : strtolower($operator);
+        // where("col", "valor"): operador omitido, vale "=".
+        // Decidido pela QUANTIDADE de argumentos e não pelo valor: antes, valores
+        // como 0, "" ou null eram confundidos com "omitido" (where("stock", ">", 0)
+        // virava stock = ">").
+        $has_omitted_operator = !$has_value && !$is_type_operator;
 
-        return Obj::set([
+        if ( $has_omitted_operator ){
+            $value = $operator;
+            $operator_name = is_array($value) ? "in" : "=";
+        }
+
+        return [
             "type" => $type,
             "col" => $col,
-            "operator" => $operator,
+            "operator" => $operator_name,
             "value" => $value
-        ]);
+        ];
     }
 
     private function setCondition($condition)

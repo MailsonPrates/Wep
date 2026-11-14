@@ -4,7 +4,10 @@ namespace App\Core\DB\Query\Methods;
 
 use App\Core\DB\Query\Methods\MethodInterface;
 use App\Core\DB\Query\Builders\Condition;
+use App\Core\DB\Query\Builders\Identifier;
+use App\Core\DB\Query\Builders\Placeholders;
 use App\Core\Obj;
+use InvalidArgumentException;
 
 class Delete implements MethodInterface
 {
@@ -31,25 +34,20 @@ class Delete implements MethodInterface
         $this->conditions = $props->conditions;
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     public function build()
     {
-        // Inicia montagem da query
-        $query = "DELETE FROM `".$this->table . "`";
-        $placeholders = [];
+        $bag = new Placeholders();
 
-        // CONDITIONS
-        $conditions_query = Condition::buildQuery($this->conditions);
-        $placeholders = array_merge($placeholders, $conditions_query->placeholders ?? []);
+        $conditions_query = Condition::buildQuery($this->conditions, $bag);
 
-        $query .= " ".$conditions_query->string;
-
-        $response = Obj::set([
-            'string' => $query,
-            "placeholders" => $placeholders,
+        return Obj::set([
+            'string' => "DELETE FROM " . Identifier::quote($this->table) . " " . $conditions_query->string,
+            "placeholders" => $bag->all(),
             'condition_query' => $conditions_query,
             'conditions' => $this->conditions
         ]);
-
-        return $response;
     }
 }

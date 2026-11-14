@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         bootstrap="vendor/autoload.php"
+         colors="true">
+    <testsuites>
+        <testsuite name="DB">
+            <directory suffix="Test.php">tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <!-- Integração com MySQL/MariaDB (opcional). Sem DB_TEST_NAME os testes de tests/Integration são pulados. -->
+        <!-- <env name="DB_TEST_HOST" value="127.0.0.1"/> -->
+        <!-- <env name="DB_TEST_NAME" value="testdb"/> -->
+        <!-- <env name="DB_TEST_USER" value="tester"/> -->
+        <!-- <env name="DB_TEST_PASS" value="secret123"/> -->
+    </php>
+</phpunit>
