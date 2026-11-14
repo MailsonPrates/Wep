@@ -1,0 +1,11 @@
+# Normaliza quebras de linha (LF no repositório e no disco)
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Fora do pacote distribuído pelo Composer (composer install --prefer-dist)
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/docs export-ignore
+/tests export-ignore
+/phpunit.xml export-ignore
+/CHANGELOG.md export-ignore
