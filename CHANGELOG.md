@@ -17,6 +17,53 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### Foundation (Módulo 1)
+
+#### Novidades
+
+- **Tratamento central de erros** (`Wep\Foundation\ErrorHandler`), registrado no `App::start()`:
+  - exceções não capturadas e erros fatais são registrados em `storage/log/app-AAAA-MM-DD.log`;
+  - a resposta é JSON em requisições de API (`/api/`, `Accept: application/json` ou `X-Requested-With`)
+    e uma página HTML simples nos outros casos;
+  - com `ENV=DEV`, mostra mensagem, arquivo:linha e stack trace. Fora de DEV a resposta é sempre genérica
+    e o `display_errors` é desligado;
+  - o status HTTP vem do código da exceção quando for 4xx/5xx (exceções do router), senão é 500;
+  - warnings, notices e deprecations só vão para o log, sem interromper a requisição. Em DEV o PHP
+    continua exibindo como antes;
+  - para desligar e usar um handler próprio: `'error_handler' => false` no `config/app.php`.
+- **Cache do `.env` em produção:** fora de DEV, o `php app update` compila o `.env` em
+  `storage/builds/env.build.php` (array PHP servido pelo OPcache), e o arquivo deixa de ser interpretado
+  a cada requisição. Se o `.env` for alterado depois do build, o cache é ignorado até o próximo update.
+  Em DEV o cache é removido.
+- `config/app.php` aceita `'timezone' => 'America/Sao_Paulo'`.
+- `App::path('config', '.env')` (antes era um `@todo` vazio), `App::paths()` (objeto `Wep\Foundation\Paths`)
+  e `App::env('chave', $padrao)`.
+- `Env::set()` acrescenta a variável quando ela não existe (antes ignorava em silêncio).
+
+#### Mudanças de comportamento
+
+1. **`App::config()` e `App::env()` respeitam `false`, `0` e `"0"`.** Antes o `?:` fazia esses valores
+   caírem no fallback (`DEBUG=false` com fallback `true` devolvia `true`). Agora só `null` e `""` contam
+   como "sem valor". O mesmo vale para `App::data()`.
+2. **Valores `true`/`false` do `.env` chegam como bool** em `App::config('env.x')`. Antes passavam por
+   `getenv()` e viravam `"1"`/`""`. O `getenv()` continua igual.
+3. `App::config('env.x')` só reconhece `env.` como **prefixo** (antes qualquer chave contendo `env.`).
+4. **`App::start()` sem `dir.root` lança `InvalidArgumentException`.** Antes imprimia um JSON e devolvia
+   `null`, e o `run()` seguinte quebrava com fatal.
+5. **`App::assets()` não depende mais do caminho físico da raiz.** Antes o `explode("/public", ...)`
+   quebrava quando o root continha `/public` (ex.: `/home/user/public_html/app` no cPanel).
+   `App::assets($path, true)` usa a data de modificação do arquivo (antes `time()`, que impedia o cache
+   do navegador) e usa `&v=` quando o caminho já tem query string.
+6. **`Env::set()` recusa valores com quebra de linha** (permitia injetar variáveis no `.env`) e preserva o
+   estilo de quebra de linha do arquivo (antes só reconhecia `\r\n`).
+7. `Env` ignora linhas sem `=` e nomes inválidos (antes gerava warning), aceita prefixo `export` e BOM.
+8. **`Singleton`:** uma instância por subclasse. Antes, no PHP 8.1+, todas as subclasses compartilhavam a
+   mesma instância. O construtor passou a ser `protected` e `unserialize()` lança `LogicException`.
+9. As constantes globais (`DIR_ROOT`, `ENV`, `APP_URL`...) continuam definidas, agora só se ainda não
+   existirem (um segundo `start()` não gera warning). **Deprecated**: prefira `App::path()`/`App::paths()`.
+10. Removido o trait interno `Wep\Engine\Boot`, absorvido pelo `Core`.
+11. `BuilderHooks` não depende mais da classe `App\App` do projeto.
+
 ### Repositório (Módulo 0)
 
 - `vendor/` e `composer.lock` deixaram de ser versionados (já constavam no `.gitignore`).

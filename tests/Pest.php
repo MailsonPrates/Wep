@@ -12,3 +12,4 @@
 ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
 
 require_once __DIR__ . '/Support/Database.php';
+require_once __DIR__ . '/Support/Foundation.php';

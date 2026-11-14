@@ -2,195 +2,347 @@
 
 namespace Wep;
 
-use Wep\Engine\Boot;
 use Wep\Engine\Module;
+use Wep\Env\Env;
+use Wep\Env\EnvCache;
+use Wep\Foundation\Config;
+use Wep\Foundation\ErrorHandler;
+use Wep\Foundation\Paths;
+use Wep\Router\Route;
 
+/**
+ * Fachada da aplicação. A classe App do projeto estende esta classe.
+ *
+ * @example
+ * $app = App::start(include '../config/app.php');
+ * $app->run();
+ */
 class Core
 {
-    use Boot;
+    /** @var array<string, mixed> dados de config/data.php */
+    public static $data = [];
+
+    /** @var Env|null */
+    public static $env = null;
+
+    /** @var array<string, mixed> config/app.php */
+    private static $config = [];
+
+    private static bool $started = false;
+
+    private static ?Config $repository = null;
+
+    private static ?Paths $paths = null;
+
+    private static ?EnvCache $envCache = null;
+
+    /**
+     * Inicializa a aplicação.
+     *
+     * @param array $config conteúdo de config/app.php
+     * @param string $config['name']
+     * @param string $config['title'] título do documento
+     * @param array  $config['dir'] root (obrigatório), name (subpasta na URL)
+     * @param string $config['env'] caminho do .env (padrão: config/.env)
+     * @param string $config['timezone'] ex.: "America/Sao_Paulo"
+     * @param bool   $config['error_handler'] tratamento central de erros (padrão: true)
+     *
+     * @throws \InvalidArgumentException quando dir.root não for informado
+     */
+    public static function start($config = [])
+    {
+        if (self::$started) {
+            return new static();
+        }
+
+        $config = (array) $config;
+        $root = $config['dir']['root'] ?? null;
+
+        if (!is_string($root) || $root === '') {
+            throw new \InvalidArgumentException("Diretório root não informado na configuração do App (dir.root)");
+        }
+
+        self::$config = $config;
+        self::$repository = new Config($config);
+        self::$paths = new Paths($root);
+        self::$paths->defineLegacyConstants();
+
+        $useErrorHandler = $config['error_handler'] ?? true;
+
+        // registrado antes do .env para cobrir falhas de boot; o modo debug é ajustado logo depois
+        if ($useErrorHandler) {
+            ErrorHandler::register(false, self::$paths->log());
+        }
+
+        self::startEnv();
+
+        self::defineConstant('ENV', (string) self::env('ENV', ''));
+        self::defineConstant('ENV_DEV', ENV == 'DEV');
+        self::defineConstant('APP_URL', (string) self::env('APP_URL', ''));
+        self::defineConstant('CORE_NAMESPACE', 'Wep\\');
+        self::defineConstant('DEFAULT_VIEW_CONTROLLER', CORE_NAMESPACE . 'View\\View@handle');
+
+        if ($useErrorHandler) {
+            ErrorHandler::configure(ENV_DEV);
+        }
+
+        if ($timezone = self::$repository->get('timezone')) {
+            date_default_timezone_set($timezone);
+        }
+
+        if (file_exists(APP_CONSTANTS_FILENAME)) {
+            include_once APP_CONSTANTS_FILENAME;
+        }
+
+        self::$started = true;
+
+        Route::start(APP_URL, '@');
+
+        if (file_exists(ROUTE_MAPS_BUILD_FILENAME_BACK)) {
+            include_once ROUTE_MAPS_BUILD_FILENAME_BACK;
+        }
+
+        self::loadData();
+
+        return new static();
+    }
+
+    public static function run()
+    {
+        Route::execute();
+    }
+
+    public static function isStarted(): bool
+    {
+        return self::$started;
+    }
 
     /**
      * Retorna dados de configuração da aplicação.
-     * - Em produção, retorna dados do cache.
-     * - Quando é arquivo .env retorna pelo getenv
-     * 
+     *
+     * "Sem valor" é null ou "" (string vazia): nesses casos vale o fallback.
+     * false, 0 e "0" são valores válidos e são devolvidos como estão.
+     *
      * @example
-     * 
-     * # Case 0: retorna todas as configs
+     * # Case 0: todas as configs
      * App::config();
-     * 
-     * # Case 1: retorna configs do app
+     *
+     * # Case 1: configs do app (config/app.php)
      * App::config("name");
      * App::config("name", 'fallback');
-     * App::config("name|title"); name ou title
-     * App::config("name|title", 'fallback'); name ou title ou fallback
-     * 
-     * # Case 2: retorna configurações do arquivo env   
+     * App::config("name|title");             // name ou title
+     * App::config("name|title", 'fallback'); // name, title ou fallback
+     * App::config("dir.root");               // chaves aninhadas
+     *
+     * # Case 2: variáveis do .env
      * App::config("env", "key");
      * App::config("env", "key", 'fallback');
      * App::config("env.key");
      * App::config("env.key", 'fallback');
-     * 
-     * # Case 3: retorna config dos módulos
+     *
+     * # Case 3: config dos módulos
      * App::config("module", "Pedido")->routes;
      * App::config("module", "Vendor.Pedido")->routes;
      * App::config("module", "Pedido", fallback)->routes;
-     * 
-     * 
-     * @todo 
-     * - Implementar cache
      */
     public static function config()
     {
         $args = func_get_args();
-        $args_count = func_num_args();
+        $count = count($args);
 
-        if ( !$args_count ) return self::$config;
-
-        $arg_0 = $args[0];
-        $arg_1 = $args[1] ?? null;
-        $arg_2 = $args[2] ?? null;
-
-        $arg_0_lower = strtolower($arg_0 ?? '');
-
-        // checks
-        $is_single_arg = $args_count === 1;
-        $is_module_config = is_string($arg_0) && in_array($arg_0_lower, ["module", "modules"]);
-
-        $is_env_short = str_contains($arg_0_lower, 'env.');
-        $is_env_kv = ($arg_0_lower == 'env') && $args_count > 1;
-        $is_env_config = $is_env_short || $is_env_kv;
-
-        // # Case 1 - App::config("name");
-        $is_app_config = !$is_env_config && !$is_module_config;
-
-        if ( $is_app_config ){
-            $key = $arg_0;
-            $fallback = $arg_1;
-
-            // App::config("name|title", 'fallback');
-            $has_or = str_contains($key, '|');
-
-            if ( $has_or ){
-                $key_parts = explode('|', $key);
-                $key = trim($key_parts[0] ?? '');
-                $key_or = trim($key_parts[1] ?? '');
-
-                return Obj::get(self::$config, $key, $key_or) ?: $fallback;
-            }
-
-            // App::config("name", 'fallback');
-            return Obj::get(self::$config, $key) ?: $fallback;
+        if (!$count) {
+            return self::$config;
         }
 
-        // # Case 2;
-        if ( $is_env_config ){
+        $first = $args[0];
+        $second = $args[1] ?? null;
+        $third = $args[2] ?? null;
+        $lower = is_string($first) ? strtolower($first) : '';
 
-            // App::config("env.key", 'fallback');
-            if ( $is_env_short ){
-                $key = str_replace("env.", '', $arg_0_lower);
-                $key = strtoupper($key);
-                $fallback = $arg_1;
-
-                return getenv($key) ?: $fallback;
+        // Case 3
+        if ($lower === 'module' || $lower === 'modules') {
+            if (!$second) {
+                return Obj::set();
             }
 
-            // App::config("env", "key", 'fallback');
-            if ( $is_env_kv ){
-                $key = strtoupper($arg_1);
-                $fallback = $arg_2;
-                return getenv($key) ?: $fallback;
+            $module = Module::getConfigs($second);
+
+            if (empty($module) && $third) {
+                $module = $third;
             }
+
+            return Obj::set($module);
         }
 
-        // # Case 3 - App::config("module", "Pedido")->routes;
-        // App::config("module", "Vendor.Pedido")->routes;
-        // App::config("module", "all")->routes;
-        // App::config("module", "Pedido", fallback)->routes;
-        if ( $is_module_config ){
-            $module_name = $arg_1 ?? '';
-            $fallback = $arg_2;
-
-            if ( !$module_name ) return Obj::set(); /** @todo */
-            
-            $module_content = Module::getConfigs($module_name);
-            $module_content = empty($module_content) && $fallback
-                ? $fallback
-                : $module_content;
-
-            return Obj::set($module_content);
+        // Case 2
+        if (str_starts_with($lower, 'env.')) {
+            return self::env(substr($first, 4), $second);
         }
+
+        if ($lower === 'env' && $count > 1) {
+            return self::env((string) $second, $third);
+        }
+
+        // Case 1
+        return self::repository()->get((string) $first, $second);
     }
 
     /**
-     * @param string $path
-     * @param string|bool $cacheBooster
-     * 
-     * App::assets('path/to/file.jpg');
-     * App::assets('path/to/file.jpg', true);
-     * App::assets('path/to/file.jpg', 123);
+     * Valor de uma variável do .env (o nome não diferencia maiúsculas).
+     * Variáveis do ambiente real do servidor têm prioridade sobre o arquivo.
      */
-    public static function assets($path="", $cacheBooster=null)
+    public static function env(string $key, mixed $default = null): mixed
     {
-        $assets_url = explode("/public", DIR_ASSETS)[1];
-        $dir_name = self::config("dir.name", null);
+        $key = strtoupper($key);
+        $value = self::$env?->get($key);
 
-        if ( $dir_name ){
-            $assets_url = "/" . $dir_name . $assets_url;
+        if (Config::isMissing($value)) {
+            $value = getenv($key);
+            $value = $value === false ? null : $value;
         }
 
-        if ( $path ){
-            $assets_url .= ($path[0] == "/" ? $path : "/" . $path);
-
-            if ( $cacheBooster !== null ){
-                $assets_url .= '?v=' . ($cacheBooster === true ? time() : $cacheBooster);
-            }
-        }
-
-        return $assets_url;
+        return Config::isMissing($value) ? $default : $value;
     }
 
     /**
-     * Retorna dados customizados do app
-     * 
+     * URL pública de um arquivo em public/assets.
+     *
+     * @param string $path
+     * @param string|int|bool|null $cacheBooster true usa a data de modificação do arquivo
+     *
      * @example
-     * 
+     * App::assets('path/to/file.jpg');       // /assets/path/to/file.jpg
+     * App::assets('path/to/file.jpg', true); // /assets/path/to/file.jpg?v=1731600000
+     * App::assets('path/to/file.jpg', 123);  // /assets/path/to/file.jpg?v=123
+     */
+    public static function assets($path = "", $cacheBooster = null)
+    {
+        $url = '/assets';
+        $dirName = self::config('dir.name');
+
+        if ($dirName) {
+            $url = '/' . $dirName . $url;
+        }
+
+        if (!$path) {
+            return $url;
+        }
+
+        $url .= $path[0] === '/' ? $path : '/' . $path;
+
+        if ($cacheBooster !== null && $cacheBooster !== false) {
+            $version = $cacheBooster === true ? self::assetVersion($path) : $cacheBooster;
+            $url .= (str_contains($url, '?') ? '&' : '?') . 'v=' . $version;
+        }
+
+        return $url;
+    }
+
+    /**
+     * Retorna dados customizados do app (config/data.php)
+     *
+     * @example
      * App::data();
      * App::data('key');
      * App::data('key|default_key');
      * App::data('key', 'default value');
      */
-    public static function data($key=null, $default=null)
+    public static function data($key = null, $default = null)
     {
         $data = self::$data ?? [];
 
-        if ( empty($data) ) return null;
-
-        if ( !$key ) return Obj::set($data);
-
-        $has_key_default = str_contains($key, '|');
-
-        if ( $has_key_default ){
-            $key_parts = explode('|', $key);
-            $key = trim($key_parts[0] ?? '');
-            $key_default = trim($key_parts[1] ?? '');
-
-            return Obj::get($data, $key, $key_default) ?: $default;
+        if (!$key) {
+            return empty($data) ? null : Obj::set($data);
         }
 
-        return Obj::get($data, $key) ?? $default;
+        return (new Config((array) $data))->get($key, $default);
     }
 
-     /**
-     * @todo
-     * 
+    /**
+     * Caminho absoluto dentro da aplicação.
+     *
      * @example
-     * 
+     * App::path();                // raiz
      * App::path("/config/.env");
      * App::path("config", ".env");
      */
-    public static function path()
+    public static function path(string ...$segments): string
     {
+        return self::paths()->root(...$segments);
+    }
 
+    public static function paths(): Paths
+    {
+        if (!self::$paths) {
+            throw new \LogicException('A aplicação ainda não foi iniciada (App::start)');
+        }
+
+        return self::$paths;
+    }
+
+    /**
+     * Sincroniza o cache compilado do .env (chamado pelo `php app update`):
+     * fora de DEV grava storage/builds/env.build.php; em DEV remove o arquivo.
+     *
+     * @return bool true quando o cache foi gravado
+     */
+    public static function syncEnvCache(): bool
+    {
+        if (!self::$env || !self::$envCache) {
+            return false;
+        }
+
+        if (defined('ENV_DEV') && ENV_DEV) {
+            self::$envCache->clear();
+            return false;
+        }
+
+        return self::$envCache->write(self::$env->parse());
+    }
+
+    private static function repository(): Config
+    {
+        return self::$repository ??= new Config(self::$config);
+    }
+
+    private static function startEnv(): void
+    {
+        $path = self::repository()->get('env') ?? self::$paths->config('.env');
+
+        $env = new Env($path);
+        $cache = new EnvCache(self::$paths->builds('env.build.php'));
+        $cached = $cache->read($path);
+
+        $cached === null ? $env->load() : $env->apply($cached);
+
+        self::$env = $env;
+        self::$envCache = $cache;
+    }
+
+    private static function loadData(): void
+    {
+        $filename = self::$paths->config('data.php');
+
+        if (!file_exists($filename)) {
+            return;
+        }
+
+        $data = include_once $filename;
+
+        self::$data = is_array($data) ? $data : [];
+    }
+
+    private static function assetVersion(string $path): int
+    {
+        $file = self::paths()->assets(strtok($path, '?') ?: $path);
+
+        return is_file($file) ? (int) filemtime($file) : time();
+    }
+
+    private static function defineConstant(string $name, mixed $value): void
+    {
+        if (!defined($name)) {
+            define($name, $value);
+        }
     }
 }

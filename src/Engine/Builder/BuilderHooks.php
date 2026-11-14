@@ -2,7 +2,7 @@
 
 namespace Wep\Engine\Builder;
 
-use App\App;
+use Wep\Core;
 use Wep\Cache;
 use Wep\Engine\Module;
 
@@ -75,7 +75,7 @@ class BuilderHooks
 
     private static function getAppHooks()
     {
-        $app_hooks = App::config('hooks') ?? [];
+        $app_hooks = Core::config('hooks') ?? [];
         $hooks = [];
         
         foreach($app_hooks as $event => $executor){

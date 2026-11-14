@@ -41,6 +41,11 @@ class Update
 
         if ( $custom_sets_update->error ) return $custom_sets_update;
 
+        // Fora de DEV compila o .env em storage/builds/env.build.php; em DEV remove o cache
+        if ( Core::syncEnvCache() ){
+            $response->message .= " (cache do .env gerado)";
+        }
+
         BuilderHooks::afterBuild();
         
         return $response;

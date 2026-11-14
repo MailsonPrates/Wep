@@ -1,51 +1,40 @@
 <?php
 
-/**
- * @version 1.0.0
- */
-
 namespace Wep;
 
 /**
- * Singleton Pattern.
- * 
- * Modern implementation.
- * https://stackoverflow.com/questions/203336/creating-the-singleton-design-pattern-in-php5
+ * Singleton: uma instância por classe.
+ *
+ * @example
+ * class Connection extends Singleton {}
+ * Connection::instance();
  */
 class Singleton
 {
-    /**
-     * Call this method to get singleton
-     */
-    public static function instance()
-    {
-      static $instance = false;
-      if ( $instance === false ){
-        // Late static binding (PHP 5.3+)
-        $instance = new static();
-      }
+    /** @var array<class-string, static> */
+    private static array $instances = [];
 
-      return $instance;
+    /**
+     * Instância única da classe chamada (cada subclasse tem a sua).
+     *
+     * Antes era um "static $instance" dentro do método: a partir do PHP 8.1 subclasses que herdam
+     * o método compartilham essa variável, então A::instance() e B::instance() devolviam o mesmo objeto.
+     */
+    public static function instance(): static
+    {
+        return self::$instances[static::class] ??= new static();
     }
 
-    /**
-     * Make constructor private, so nobody can call "new Class".
-     */
-    private function __construct() {}
+    protected function __construct()
+    {
+    }
 
-    /**
-     * Make clone magic method private, so nobody can clone instance.
-     */
-    private function __clone() {}
+    private function __clone()
+    {
+    }
 
-    /**
-     * Make sleep magic method private, so nobody can serialize instance.
-     */
-    public function __sleep() {}
-
-    /**
-     * Make wakeup magic method private, so nobody can unserialize instance.
-     */
-    public function __wakeup() {}
-
+    public function __wakeup(): void
+    {
+        throw new \LogicException('Singleton não pode ser desserializado: ' . static::class);
+    }
 }
