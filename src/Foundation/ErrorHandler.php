@@ -247,7 +247,10 @@ final class ErrorHandler
         return get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
     }
 
-    private static function log(string $level, string $message): void
+    /**
+     * Registra uma linha no log da aplicação (storage/log/app-AAAA-MM-DD.log).
+     */
+    public static function log(string $level, string $message): void
     {
         $line = '[' . date('Y-m-d H:i:s') . "] $level: $message" . PHP_EOL;
 

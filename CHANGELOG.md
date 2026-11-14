@@ -17,6 +17,78 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### HTTP + Router (Módulo 2)
+
+#### Segurança
+
+- **Proteção CSRF por origem**, ligada por padrão. POST, PUT, PATCH e DELETE com header `Origin` de outro
+  site (ou `Sec-Fetch-Site: cross-site`) recebem **403**. Requisições sem esses headers (curl, webhooks,
+  servidor-a-servidor) passam. O front não muda.
+- **Headers de segurança** em toda resposta: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
+  `Referrer-Policy: strict-origin-when-cross-origin`. O `X-Powered-By` é removido. HSTS fica opt-in.
+- **`Response::json()` envia `Content-Type: application/json; charset=utf-8`.** Antes a API inteira respondia
+  como `text/html`.
+- **`data()` e `$request->campo`:** a query string não sobrescreve mais o corpo nem os parâmetros da rota
+  (*parameter pollution*). A precedência é query < corpo < parâmetros da rota < `custom` da rota.
+- **`ip()` só considera `X-Forwarded-For` de proxies confiáveis** (`trusted_proxies`). Antes qualquer
+  cliente forjava o IP.
+- **Middleware desconhecido falha fechado** (erro 500 com mensagem clara). Antes um erro de digitação em
+  `use_middlewares` deixava a rota sem proteção, em silêncio.
+
+Configuração (`config/app.php`, todas opcionais):
+
+```php
+'security' => [
+    'csrf' => true,
+    'trusted_origins' => ['https://admin.exemplo.com'],
+    'csrf_except' => ['/webhook/*'],
+    'headers' => true,          // false desliga; ['X-Frame-Options' => 'DENY', 'Referrer-Policy' => null] ajusta
+    'hsts' => false,            // true ou ['max_age' => 31536000, 'include_subdomains' => false, 'preload' => false]
+    'trusted_proxies' => [],    // ex.: ['10.0.0.1', '10.0.0.0/8'] (Cloudflare, load balancer)
+],
+```
+
+#### Performance
+
+- **Um único request por ciclo**, criado depois do matching. Antes cada rota registrada criava o seu, relendo
+  headers, `$_POST` e o corpo da requisição (com 55 rotas, um JSON grande era decodificado 55 vezes).
+  O registro das rotas caiu de ~1,6 ms para ~0,45 ms por requisição.
+- Rotas estáticas são resolvidas por lookup direto (sem regex). O corpo é lido uma vez e o mapa de rotas
+  (`route-maps.php`) é carregado uma vez por processo.
+
+#### Bugs corrigidos
+
+- **PUT, PATCH e DELETE com corpo JSON chegavam corrompidos** (passavam por `parse_str`). Isso quebrava o
+  `update` e o `delete` enviados pelo `api-factory` do front.
+- Os parâmetros de rota vinham de um `array_diff` entre segmentos da URL e se perdiam quando o valor repetia
+  um segmento (`/user/{name}` com `/user/user/`). Agora vêm dos grupos da regex.
+- `$request->qualquerCoisa` devolvia o array `custom` inteiro da rota quando a propriedade não existia.
+  Agora devolve `null`, e `isset($request->campo)` funciona.
+- `all('campo')` devolvia `null` quando um dos campos excluídos não existia no corpo.
+- Uma action de rota que retornasse um valor (string, array, int) quebrava com `TypeError` (retorno `?Closure`).
+- `Route::any()` ignorava o prefixo do grupo e registrava a rota no mapa de redirects (fatal ao casar).
+- `HEAD` e métodos desconhecidos geravam warning no `foreach` sobre `null`. Agora `HEAD` usa as rotas `GET`.
+- O redirect para rota nomeada usava `rtrim(regex, '(\/)?')`, que podia cortar caracteres do fim da rota.
+- `header()` agora não diferencia maiúsculas e inclui `Content-Type`/`Content-Length`.
+- O request não dependia mais de a app estar iniciada para funcionar (`RouteMap` sem constantes devolve vazio).
+
+#### Mudanças de comportamento
+
+1. **Precedência de rotas:** a rota estática exata vence; entre dinâmicas vence a **primeira** registrada
+   (antes vencia a última que casasse). Verificado nas 55 rotas do template: nenhuma muda de dono.
+2. Trechos literais da rota são escapados na regex (antes `/arquivo.json` casava com `/arquivoXjson`).
+3. Precedência em `data()`/`$request->campo` (ver Segurança).
+4. `bearerToken()` devolve só o token (antes `"Bearer <token>"`).
+5. Middleware desconhecido lança `BadMiddlewareExecuteException` (500).
+6. Form spoofing aceita `_method` em minúsculas (`put`).
+7. Requisições bloqueadas pelo CSRF são registradas no log como `WARNING`.
+
+#### Novidades
+
+- `Wep\Http\Middleware` (interface; `iMiddleware` continua funcionando e está deprecated).
+- `Wep\Http\HttpException` (o código é o status HTTP, usado pelo `ErrorHandler`).
+- `$request->param('id')`, `$request->isSecure()`, `RouterHttpRequest::setTrustedProxies()`.
+
 ### Foundation (Módulo 1)
 
 #### Novidades

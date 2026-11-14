@@ -8,6 +8,10 @@ use Wep\Env\EnvCache;
 use Wep\Foundation\Config;
 use Wep\Foundation\ErrorHandler;
 use Wep\Foundation\Paths;
+use Wep\Http\HttpException;
+use Wep\Http\OriginGuard;
+use Wep\Http\SecurityHeaders;
+use Wep\Router\Http\RouterHttpRequest;
 use Wep\Router\Route;
 
 /**
@@ -107,9 +111,53 @@ class Core
         return new static();
     }
 
+    /**
+     * Atende a requisição: headers de segurança, proteção CSRF e roteamento.
+     *
+     * config/app.php, chave "security" (todas opcionais):
+     *   'headers' => true|false|[...], 'hsts' => false|true|[...],
+     *   'csrf' => true, 'trusted_origins' => [...], 'csrf_except' => [...],
+     *   'trusted_proxies' => ['10.0.0.1', '10.0.0.0/8']
+     */
     public static function run()
     {
+        $security = self::security();
+
+        RouterHttpRequest::setTrustedProxies((array) ($security['trusted_proxies'] ?? []));
+        SecurityHeaders::send($security);
+
+        try {
+            OriginGuard::enforce($_SERVER, $security, defined('APP_URL') ? APP_URL : '', self::requestPath());
+        } catch (HttpException $e) {
+            ErrorHandler::log('WARNING', $e->getMessage() . ' [' . ($_SERVER['REQUEST_METHOD'] ?? '') . ' ' . ($_SERVER['REQUEST_URI'] ?? '') . ']');
+            ErrorHandler::render($e);
+            return;
+        }
+
         Route::execute();
+    }
+
+    /**
+     * Config "security" do app.
+     *
+     * @return array<string, mixed>
+     */
+    public static function security(): array
+    {
+        $security = self::repository()->get('security', []);
+
+        return is_array($security) ? $security : [];
+    }
+
+    private static function requestPath(): string
+    {
+        $route = $_GET['route'] ?? null;
+
+        if (is_string($route) && $route !== '') {
+            return $route;
+        }
+
+        return (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
     }
 
     public static function isStarted(): bool

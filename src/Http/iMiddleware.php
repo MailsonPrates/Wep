@@ -2,7 +2,9 @@
 
 namespace Wep\Http;
 
-interface iMiddleware 
+/**
+ * @deprecated use Wep\Http\Middleware (mesmo contrato).
+ */
+interface iMiddleware extends Middleware
 {
-    public function handle($request, $next);
 }

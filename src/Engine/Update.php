@@ -8,6 +8,7 @@ use Wep\Engine\Builder\Warning;
 use Wep\Engine\Builder\RoutesMap;
 use Wep\Engine\Builder\Vendor\Vendor;
 use Wep\Obj;
+use Wep\Router\RouteMap;
 use Wep\Str;
 
 /**
@@ -75,6 +76,9 @@ class Update
                 $response->data[] = "Erro ao atualizar o mapa de rotas: $type";
             }
         }
+
+        // hooks do mesmo processo (after_build) passam a ler o mapa novo
+        RouteMap::flush();
 
         if ( !empty($routes_build->module_apis) ){
             $update_module_apis = self::moduleApis($routes_build->module_apis);

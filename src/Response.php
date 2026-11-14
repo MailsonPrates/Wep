@@ -142,6 +142,12 @@ class Response
             $response = self::$method($content, $params);
         }
 
+        // antes a resposta saía como text/html: um JSON que refletisse input do usuário
+        // (ex.: "<script>") podia ser renderizado pelo navegador ao abrir a URL da API
+        if (!headers_sent() && PHP_SAPI !== 'cli') {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
         echo json_encode($response);
     }
 }

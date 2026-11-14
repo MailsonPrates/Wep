@@ -24,7 +24,7 @@ abstract class Route extends RouteCollection
      * 
      * @return void
      */
-    public static function start(String $projectUrl, String $separator = null): void
+    public static function start(String $projectUrl, ?String $separator = null): void
     {
         self::$projectUrl = rtrim($projectUrl, '/');
 

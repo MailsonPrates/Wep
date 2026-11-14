@@ -2,6 +2,7 @@
 
 namespace Wep\Router\Middlewares;
 
+use Wep\Router\Exceptions\BadMiddlewareExecuteException;
 use Wep\Router\Http\RouterHttpRequest;
 use Wep\Router\Middlewares\MiddlewareRoute;
 
@@ -31,7 +32,7 @@ class MiddlewareCollection
      * 
      * @return string|array
      */
-    public function get(String $middleware = null)
+    public function get(?String $middleware = null)
     {
         if ($middleware && is_array($this->middlewares) && isset($this->middlewares[$middleware])) {
             return $this->middlewares[$middleware];
@@ -199,17 +200,22 @@ class MiddlewareCollection
      */
     protected function instanceMiddleware($middleware)
     {
-        if (!preg_match("/\\\/", $middleware)) {
-            if (!$middlewareClass = $this->getByAlias($middleware)) return;
-
-            return new $middlewareClass();
+        if ($middleware === '' || $middleware === null) {
+            return null;
         }
 
-        if (class_exists($middleware)) {
-            return new $middleware();
+        $class = str_contains($middleware, '\\') ? $middleware : $this->getByAlias($middleware);
+
+        // Falha fechada: antes um alias/classe inexistente (ex.: erro de digitação em
+        // "use_middlewares") era ignorado em silêncio e a rota ficava sem a proteção.
+        if (!$class || !class_exists($class)) {
+            throw new BadMiddlewareExecuteException(
+                "Middleware '$middleware' não encontrado. Verifique o nome em use_middlewares e as configs 'middlewares' do app e dos módulos (php app update).",
+                500
+            );
         }
 
-        return;
+        return new $class();
     }
 
     /**

@@ -52,6 +52,12 @@ class RouteManager
     /** @var string */
     protected $defaultRegex = "[^/]+";
 
+    /** @var string|null regex compilada (sem delimitadores); invalidada por where() */
+    private $compiled = null;
+
+    /** @var array<int, string> nome de cada parâmetro, na ordem do grupo de captura p0, p1... */
+    private $paramNames = [];
+
     public function __construct($fullUrl, $uri, $callback, String $separator, ?RouteGroups $group = null)
     {
         $this->route = $uri;
@@ -60,14 +66,51 @@ class RouteManager
         $this->originalRoute = $uri;
         $this->separator = $separator;
 
-        $this->request = new RouterHttpRequest(
-            $this->fullUrl,
-            $this->route,
-            $this->foundParameters(true)
-        );
+        // O request não é mais criado aqui (antes: um por rota registrada, relendo headers e
+        // corpo da requisição N vezes). A RouteCollection cria um único request no dispatch.
 
         $this->compileGroupData();
         $this->compileAction($callback);
+    }
+
+    /**
+     * Rota sem parâmetros dinâmicos ({id}): é resolvida por lookup direto, sem regex.
+     */
+    public function isStatic(): bool
+    {
+        return !str_contains($this->originalRoute, '{');
+    }
+
+    /**
+     * Verifica se a URI casa com a rota.
+     *
+     * @return array<string, string>|null parâmetros capturados (nome => valor) ou null se não casar
+     */
+    public function matches(string $uri): ?array
+    {
+        if (!preg_match('~^' . $this->getRoute() . '$~u', $uri, $found)) {
+            return null;
+        }
+
+        $params = [];
+
+        foreach ($this->paramNames as $index => $name) {
+            $value = $found["p$index"] ?? '';
+
+            if ($value !== '') {
+                $params[$name] = $value;
+            }
+        }
+
+        return $params;
+    }
+
+    /**
+     * Define o request do ciclo atual (chamado pela RouteCollection antes do dispatch).
+     */
+    public function setRequest(RouterHttpRequest $request): void
+    {
+        $this->request = $request;
     }
 
     /**
@@ -107,32 +150,52 @@ class RouteManager
      * @return string
      */
     public function getRoute(): String
-    {   
+    {
         return $this->filteredRoute();
     }
 
     /**
-     * Method responsible for filtering the route,
-     * inserting regular expressions in place of dynamic parameters.
-     * 
+     * Compila a rota em regex (sem delimitadores), com um grupo nomeado (p0, p1...) por parâmetro.
+     * Trechos literais são escapados (antes um "." na rota casava com qualquer caractere).
+     *
+     * /user/{id}/edit  →  /user/(?P<p0>[^/]+)/edit/?
+     * /post/{slug?}    →  /post(?:/(?P<p0>[^/]+))?/?
+     *
      * @return string
      */
     protected function filteredRoute(): String
     {
-        $parameters = $this->foundParameters();
-
-        foreach ($parameters as $parameter) {
-            $realRegex = $this->getWhere($parameter[1]) ?? $this->defaultRegex;
-
-            if (preg_match("/\?/", $parameter[0])) {
-                $this->route = str_replace("/{$parameter[0]}", "(\/)?({$realRegex})?", $this->route);
-                continue;
-            }
-
-            $this->route = str_replace("{$parameter[0]}", "({$realRegex})", $this->route);
+        if ($this->compiled !== null) {
+            return $this->compiled;
         }
 
-        return $this->route . '(\/)?';
+        preg_match_all("~\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)(\?)?\s*\}~", $this->route, $found, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+
+        $pattern = '';
+        $offset = 0;
+        $this->paramNames = [];
+
+        foreach ($found as $index => $match) {
+            [$placeholder, $position] = $match[0];
+            $name = $match[1][0];
+            $isOptional = ($match[2][0] ?? '') === '?';
+
+            $literal = substr($this->route, $offset, $position - $offset);
+            $group = "(?P<p$index>" . ($this->getWhere($name) ?? $this->defaultRegex) . ")";
+
+            if ($isOptional && str_ends_with($literal, '/')) {
+                $pattern .= preg_quote(substr($literal, 0, -1), '~') . "(?:/$group)?";
+            } else {
+                $pattern .= preg_quote($literal, '~') . $group . ($isOptional ? '?' : '');
+            }
+
+            $this->paramNames[$index] = $name;
+            $offset = $position + strlen($placeholder);
+        }
+
+        $pattern .= preg_quote(substr($this->route, $offset), '~');
+
+        return $this->compiled = $pattern . '/?';
     }
 
     /**
@@ -158,6 +221,7 @@ class RouteManager
     protected function setWhereData(String $key, String $value)
     {
         $this->where[$key] = $value;
+        $this->compiled = null;
     }
 
     /**
@@ -188,22 +252,8 @@ class RouteManager
      */
     public function closureReturn(): array
     {
-        $getParams = $this->request()->getParams();
-        $dinamycParameters = array_fill_keys($this->foundParameters(true, true), null);
-
-        //$params = array_values(
-        //    array_merge($dinamycParameters, $getParams)
-        //);
-
-        return array_merge([
-            /**
-             * Retirado esse retorno de parametros
-             * para que retorno somente os dados do request
-             */
-            //$params,
-            
-            $this->request()
-        ]);
+        // a action recebe somente o request; os parâmetros ficam em $request->getParams()
+        return [$this->request()];
     }
 
     /**
@@ -349,7 +399,8 @@ class RouteManager
      */
     public function request(): RouterHttpRequest
     {
-        return $this->request;
+        // fora do dispatch (ex.: router()->get('nome')->request()) cria um request sem parâmetros
+        return $this->request ??= new RouterHttpRequest($this->fullUrl, $this->originalRoute, []);
     }
 
     /**
