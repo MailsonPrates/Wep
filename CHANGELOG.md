@@ -17,6 +17,65 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### Sessão, autenticação e instalação (Módulo 4)
+
+#### Segurança
+
+- **`Session` com configuração segura por padrão:**
+  - `use_strict_mode`: o PHP recusa IDs de sessão que ele não gerou. Antes, um ID plantado pelo atacante
+    era aceito e mantido depois do login (*session fixation*);
+  - cookie `HttpOnly`, `SameSite=Lax` e `Secure` em HTTPS;
+  - expiração por inatividade (padrão 2h);
+  - `Session::regenerate()` novo; `Session::end()` agora também apaga o cookie;
+  - novos `Session::has()` e `Session::forget()`.
+- **`Wep\Security\RateLimiter`:** limite de tentativas por chave, guardado em `storage/cache/rate-limit`.
+- **`Wep\Security\Token`:** tokens de uso único com validade. No banco fica só o "selo"
+  (`sha256:expiração`), e `Token::password()` gera senhas temporárias legíveis.
+- **`php app install`:** instalação pelo terminal (`Wep\Engine\Install`), substituindo a página web
+  `/install` do template, que era pública, gravava o `.env` com input do usuário e podia ser executada de novo:
+  - grava o `.env` via `Env::set` (sem injeção de linhas);
+  - testa o banco;
+  - executa `database/*.sql` uma instrução por vez (`Wep\DB\SqlScript`), sem precisar de multi-statements;
+  - roda o build e o instalador da aplicação (config `'installer'`, interface `Wep\Engine\Installer`);
+  - grava `storage/install.lock`. Reinstalar exige `--force`.
+- `Wep\Command\Console::ask()` e `secret()` para comandos interativos.
+
+Config (`config/app.php`, opcional):
+
+```php
+'session' => [
+    'idle_timeout' => 7200,   // segundos sem atividade; 0 desliga
+    'lifetime' => 0,          // validade do cookie; 0 = até fechar o navegador
+    'samesite' => 'Lax',
+    'secure' => null,         // null = só em HTTPS
+    'name' => 'PHPSESSID',
+],
+'installer' => \App\Common\Installer::class,
+```
+
+#### Mudanças de comportamento
+
+1. **Sessões são encerradas após 2h sem atividade** (`'idle_timeout' => 0` mantém o comportamento antigo).
+2. IDs de sessão desconhecidos passam a ser substituídos por um ID novo (`use_strict_mode`).
+3. `DB::connect()` aceita senha vazia (ex.: MySQL local). Antes recusava antes mesmo de tentar conectar.
+
+#### Template (wep/project)
+
+As correções de autenticação ficam no template e são aplicadas pelo módulo Login:
+- o login troca o ID da sessão, limita tentativas (5 por usuário+IP e 30 por IP a cada 15 minutos) e só
+  redireciona para caminhos internos;
+- **senha temporária:** aleatória, válida por 72h e mostrada uma única vez ao admin (antes era `mudar123`
+  para todos). Ela não abre sessão até o usuário criar a própria senha. Antes a sessão já ficava logada e,
+  no segundo login, a conta era ativada sem trocar a senha;
+- **recuperação de senha:** o link vale 1h e o banco guarda só o hash do token. Tokens antigos, em texto
+  puro, deixam de valer após a atualização;
+- **"lembrar-me":** cookie host-only com `SameSite`; o logout passa a apagá-lo (usava o domínio `example.com`);
+  rotação do token a cada uso; restaurar a sessão não encerra mais a requisição de API com resposta vazia;
+- **convite:** o cadastro é público (antes exigia login e não funcionava) e valida status e validade.
+  O convite é reservado de forma atômica antes de criar o usuário;
+- senha mínima de 8 caracteres;
+- o módulo `Install` (web) foi removido; o schema ficou em `database/schema.sql` (InnoDB, utf8mb4).
+
 ### CRUD automático: o front não monta mais queries (Módulo 3)
 
 > **Quebra de compatibilidade.** Atualize o front (`api-factory`) e os métodos sobrescritos dos módulos

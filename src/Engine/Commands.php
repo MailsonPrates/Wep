@@ -9,6 +9,7 @@ class Commands
 {
     private static $actions = [
         'update' => 'Wep\Engine\Update@handle',
+        'install' => 'Wep\Engine\Install@handle',
         'create module' => 'Wep\Engine\Builder\Snippets\Module@create'
     ];
 

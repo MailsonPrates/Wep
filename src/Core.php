@@ -69,6 +69,8 @@ class Core
         self::$config = $config;
         self::$repository = new Config($config);
         self::$paths = new Paths($root);
+
+        Session::configure(is_array($config['session'] ?? null) ? $config['session'] : []);
         self::$paths->defineLegacyConstants();
 
         $useErrorHandler = $config['error_handler'] ?? true;

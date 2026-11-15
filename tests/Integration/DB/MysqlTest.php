@@ -129,7 +129,6 @@ describe('conexão', function () {
     });
 
     it('barra DSN injection no nome do banco, sem tentar conectar', function () {
-        // senha fictícia: DB::connect recusa senha vazia antes de validar o DSN (root do XAMPP não tem senha)
         expect(fn() => connectWith(['db_name' => 'testdb;host=servidor-malicioso', 'db_password' => 'x']))
             ->toThrow(Exception::class, 'Invalid database name');
     });

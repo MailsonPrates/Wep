@@ -158,7 +158,8 @@ class DB
         $password = Core::config("env", $password_key);
         $charset = Core::config("env", $charset_key, 'utf8mb4');
 
-        if (!$name || !$username || !$password) {
+        // senha vazia é válida (ex.: MySQL local); o próprio servidor recusa credenciais erradas
+        if (!$name || !$username) {
             throw new Exception("Dados do banco de dados inválidos");
         }
 
