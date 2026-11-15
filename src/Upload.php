@@ -31,6 +31,12 @@ class Upload
     public static $max_size = 5242880;
 
     /**
+     * Largura × altura máxima. Um PNG pequeno pode declarar 20000×20000: decodificá-lo (GD, miniaturas)
+     * alocaria gigabytes de memória.
+     */
+    public static $max_pixels = 40000000;
+
+    /**
      * Move o arquivo enviado. Os testes trocam por um rename() (move_uploaded_file só aceita
      * arquivos vindos de um POST real).
      *
@@ -133,7 +139,38 @@ class Upload
             if ($detected !== false && $detected !== $mime) return null;
         }
 
-        return self::$mime_types[$mime] ?? null;
+        $extension = self::$mime_types[$mime] ?? null;
+
+        if ($extension === null) return null;
+
+        if ((int) $info[0] * (int) $info[1] > self::$max_pixels) return null;
+
+        // com o GD disponível, a imagem precisa decodificar: cabeçalho válido com o resto corrompido
+        // passava e quebrava depois (miniaturas, Image::get)
+        if (function_exists('imagecreatefromstring') && self::gdSupports($extension)) {
+            // a libpng/libjpeg emite vários warnings em arquivo inválido: aqui eles só significam "recusar"
+            set_error_handler(static fn () => true);
+
+            try {
+                $image = imagecreatefromstring($bytes);
+            } finally {
+                restore_error_handler();
+            }
+
+            if ($image === false) return null;
+
+            unset($image);
+        }
+
+        return $extension;
+    }
+
+    /** O GD instalado decodifica esse formato? (ex.: GD compilado sem WebP) */
+    private static function gdSupports(string $extension): bool
+    {
+        $flags = ['jpg' => IMG_JPG, 'png' => IMG_PNG, 'gif' => IMG_GIF, 'webp' => IMG_WEBP];
+
+        return function_exists('imagetypes') && isset($flags[$extension]) && (imagetypes() & $flags[$extension]) !== 0;
     }
 
     private static function baseDir(): string

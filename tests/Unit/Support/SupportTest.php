@@ -196,6 +196,21 @@ describe('Upload', function () {
             ->toThrow(Exception::class, 'erro ao salvar');
     });
 
+    it('recusa imagem que declara dimensões gigantes (bomba de descompressão)', function () {
+        // mesmo PNG 1x1 com o IHDR dizendo 20000x20000 (o getimagesize lê só o cabeçalho)
+        $png = base64_decode(PNG_1X1);
+        $png = substr_replace($png, pack('NN', 20000, 20000), 16, 8);
+
+        expect(Upload::detectExtension(uploadedFile('a.png', $png)['tmp_name']))->toBeNull();
+    });
+
+    it('com GD: cabeçalho válido e resto corrompido é recusado', function () {
+        $png = substr(base64_decode(PNG_1X1), 0, 40) . str_repeat("\0", 30);
+
+        expect(Upload::detectExtension(uploadedFile('a.png', $png)['tmp_name']))->toBeNull()
+            ->and(Upload::detectExtension(uploadedFile('b.png', base64_decode(PNG_1X1))['tmp_name']))->toBe('png');
+    })->skip(!function_exists('imagecreatefromstring'), 'requer a extensão GD');
+
     it('sem "prefix" não gera warning', function () {
         $path = Upload::image(['file' => uploadedFile('a.png', base64_decode(PNG_1X1))]);
 

@@ -4,7 +4,7 @@
 |--------------------------------------------------------------------------
 | Compatibilidade com o namespace antigo (App\Core\ → Wep\)
 |--------------------------------------------------------------------------
-| Até a 1.0.19 o Core usava o namespace App\Core\. Este autoloader cria, sob demanda,
+| Até a 1.x o Core usava o namespace App\Core\. Este autoloader cria, sob demanda,
 | um alias App\Core\X → Wep\X, então código existente (use App\Core\Model, implements
 | App\Core\Http\iMiddleware, route-maps.build.php gerados) continua funcionando.
 |
@@ -14,7 +14,7 @@
 |
 | Classes renomeadas ou movidas entram em $moved (nome antigo → nome novo).
 |
-| @deprecated será removido na 2.0. Use os nomes Wep\.
+| @deprecated mantido na 2.x; será removido numa versão maior futura. Use os nomes Wep\.
 */
 
 spl_autoload_register(static function (string $class): void {

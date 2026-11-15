@@ -81,7 +81,7 @@ final class Paths
     }
 
     /**
-     * Define as constantes globais usadas até a 1.0.19 (DIR_ROOT, DIR_CONFIG, ROUTE_MAPS_FILENAME...).
+     * Define as constantes globais usadas na 1.x (DIR_ROOT, DIR_CONFIG, ROUTE_MAPS_FILENAME...).
      * Cada constante só é definida se ainda não existir (um segundo start() não gera warnings).
      *
      * @deprecated as constantes continuam disponíveis por compatibilidade; prefira App::path()/App::paths().

@@ -3,7 +3,38 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
-## [Não lançado]
+## [2.0.0] - 2026-11-15
+
+Refatoração de segurança, performance e estrutura. As quebras de compatibilidade foram feitas só onde
+havia risco. Cada seção abaixo traz as suas em **Mudanças de comportamento**.
+
+### Atualizando da 1.x
+
+**Obrigatório: o que pode quebrar o app**
+
+1. **CRUD automático: o front não monta mais queries** (Módulo 3). `where`, `fields`, `leftJoin`,
+   `orderBy` etc. vindos do cliente respondem 400. O front usa `get()`, `get(id)`, `get({filtro})`,
+   `create(campos)`, `update(id, campos)` e `delete(id)`. Os filtros aceitos ficam declarados no módulo
+   (`'api' => ['filters' => [...]]`), e `Model::fromClient()` monta a query no servidor.
+2. **Módulos vendor só viram rota com `'expose' => true`** e middlewares (Módulo 7).
+3. **Expressões SQL em campos/where/order exigem `DB::raw()`.** Multi-statements vêm desligados (DB).
+4. **Sessão expira após 2 h sem atividade** (`'idle_timeout' => 0` desliga). Instalação passa a ser por
+   CLI: `php app install` (Módulo 4).
+5. **Precedência de rotas:** a estática exata vence; entre dinâmicas, a primeira registrada (Módulo 2).
+   O CSRF (Origin/Sec-Fetch-Site) e os headers de segurança vêm ligados.
+6. **Upload só aceita imagens de verdade** (o tipo vem do conteúdo), e o cache gravado sem validade
+   expira em 1 h (Módulo 8).
+7. `Html`: atributos são escapados, mas o conteúdo continua sendo HTML. Texto de usuário vai por
+   `Html::text()`/`Html::escape()` (Módulo 5).
+
+**Recomendado**
+
+- Troque `App\Core\` por `Wep\` (o alias continua funcionando) e remova o mapeamento manual
+  `"App\\Core\\": "vendor/wep/framework/src/"` do `composer.json` do app.
+- Rode `php app update` depois de atualizar: os arquivos de build mudaram de formato.
+- Apps criados pelo template: compare com o `wep/project` 2.0.0, que traz o login com limite de tentativas,
+  os middlewares que respondem 401/403, o upload validado e o front que compila (`request.js`,
+  `webpack.config.js`).
 
 ### Namespace (Módulo 1)
 
@@ -11,7 +42,7 @@ seção **Mudanças de comportamento** de cada entrada.
   e `Wep\Http\iMiddleware`). Assim ele não colide mais com o `App\` das aplicações.
 - **Compatível:** `src/compat.php` cria sob demanda o alias `App\Core\X` → `Wep\X`. `use App\Core\Model`,
   `implements App\Core\Http\iMiddleware` e os `route-maps.build.php` já gerados continuam funcionando.
-  O alias está marcado como deprecated e será removido na 2.0.
+  O alias está marcado como deprecated e será removido numa versão maior futura (não na 2.0).
 - O mapeamento manual `"App\\Core\\": "vendor/wep/framework/src/"` no `composer.json` das aplicações
   deixa de ser necessário e pode ser removido. Mantê-lo também funciona, porque o loader de compatibilidade
   roda antes do Composer.
@@ -28,7 +59,10 @@ seção **Mudanças de comportamento** de cada entrada.
     enviados pelo cliente são ignorados;
   - `directory` só aceita subpastas de `assets/images` (`..` e caracteres estranhos dão exceção);
   - o tamanho é o real do arquivo, nomes usam `random_bytes`, e a falha ao mover vira exceção (antes o
-    caminho era devolvido mesmo sem o arquivo salvo).
+    caminho era devolvido mesmo sem o arquivo salvo);
+  - imagens que declaram mais de `Upload::$max_pixels` (40 MP) são recusadas: um PNG pequeno de
+    20000×20000 estouraria a memória ao gerar miniaturas. Com o GD instalado, a imagem também precisa
+    decodificar (cabeçalho válido com o resto corrompido era aceito e quebrava depois).
   - `File::upload()` continua existindo e chama `Upload::image()`. Mesmo retorno (caminho completo);
     `Upload::relative()` dá o caminho relativo a `assets/images`.
 - **Cache: a chave virava padrão do `glob`.** `Cache::get('senha_*')` lia a chave de outra pessoa,
