@@ -22,6 +22,8 @@ class RoutesMap
 
     public static function build($raw=false)
     {
+        self::$warnings = [];
+
         $modules_routes = self::getModulesRoutes();
 
         /**
@@ -172,7 +174,18 @@ class RoutesMap
             $route_backend_map = self::buildBackendMap($route_build);
             $route_frontend_map = self::buildFrontendMap($route_build);
 
-            $response['raw'] = array_merge($response['raw'], $route_build);
+            // mescla por path e método: antes um array_merge por path fazia um módulo apagar os
+            // outros métodos do mesmo path, e rotas duplicadas eram sobrescritas em silêncio
+            foreach( $route_build as $path => $types ){
+                foreach( $types as $type => $item ){
+                    if ( isset($response['raw'][$path][$type]) ){
+                        self::$warnings[] = "Rota duplicada: $type $path (módulos " . ($response['raw'][$path][$type]['module'] ?? '?') . " e " . ($item['module'] ?? '?') . "); vale a do último";
+                    }
+
+                    $response['raw'][$path][$type] = $item;
+                }
+            }
+
             $response['backend'] = array_merge($response['backend'], $route_backend_map);
             $response['frontend'] = array_merge($response['frontend'], $route_frontend_map->items);
             $response['frontend_imports'] = array_merge($response['frontend_imports'], $route_frontend_map->imports);
@@ -186,61 +199,56 @@ class RoutesMap
         /**
          * Fallback
          */
-        $fallback_class = 'Wep\View\View';
-        $fallback_method = 'handle';
-        $fallback = Core::config("fallback") ?? '';
-
-        if ( !empty($fallback) && is_string($fallback) ){
-            [$fallback_class, $fallback_method] = explode('@', $fallback);
-        }
-
-        $response['backend'][] = 'Route::fallback(fn($req) => (new \\'.$fallback_class.' )->'.$fallback_method.'($req));';
+        $fallback = Core::config("fallback");
+        $response['fallback'] = !empty($fallback) && is_string($fallback)
+            ? ltrim($fallback, '\\')
+            : 'Wep\\View\\View@handle';
 
         return Obj::set($response);
     }
 
+    /**
+     * raw e backend saem como DADOS (gravados com var_export pelo Update); frontend e
+     * module_apis como texto JS.
+     */
     private static function buildFileContents($buildMaps)
     {
-        $alert = self::getEditWarning();
-
         // FRONT
-        $imports = array_unique($buildMaps->frontend_imports);
-
-        $front = [$alert];
-        $front[] = join("\r", $imports);
-        $front[] = "\n";
+        $front = [self::getEditWarning()];
+        $front[] = join("\n", array_unique($buildMaps->frontend_imports));
+        $front[] = '';
         $front[] = 'export default function RouteMaps(){';
-        $front[] = join("\r", $buildMaps->frontend_elements);
-
-        $front[] = "\r\treturn (";
+        $front[] = join("\n", $buildMaps->frontend_elements);
+        $front[] = '';
+        $front[] = "\treturn (";
         $front[] = "\t\t<>";
-        $front[] = join("\r", $buildMaps->frontend);
+        $front[] = join("\n", $buildMaps->frontend);
         $front[] = "\t\t</>";
-        $front[] = "\r\t)";
-        $front[] = "\n}";
-        $front = join("\r", $front);
-
-        // BACK
-        $back = ['<?php'];
-        $back[] = "use Wep\Router\Route;";
-        $back[] = $alert;
-        $back[] = self::getMiddlewaresSets();
-        $back[] = join("\r", $buildMaps->backend);
-        $back = join("\r", $back);
-
-        // RAW
-        $raw = ['<?php'];
-        $raw[] = $alert;
-        $raw[] = "return";
-        $raw[] = var_export($buildMaps->raw, true) . ";";
-        $raw = join("\r", $raw);
+        $front[] = "\t)";
+        $front[] = "}";
+        $front[] = '';
 
         return Obj::set([
-            'raw' => $raw,
-            'frontend' => $front,
-            'backend' => $back,
+            'raw' => $buildMaps->raw,
+            'frontend' => join("\n", $front),
+            'backend' => [
+                'middlewares' => self::getMiddlewaresSets(),
+                'routes' => $buildMaps->backend,
+                'fallback' => $buildMaps->fallback,
+            ],
             'module_apis' => $buildMaps->module_apis
         ]);
+    }
+
+    /** @var string[] avisos do último build (ex.: rotas duplicadas) */
+    private static array $warnings = [];
+
+    /**
+     * @return string[]
+     */
+    public static function warnings(): array
+    {
+        return self::$warnings;
     }
 
     private static function buildMap($route)
@@ -364,21 +372,14 @@ class RoutesMap
 
             foreach( $item as $route ){
                 $route = Obj::set($route);
-                $method = strtolower($route->type);
-                $path = $route->path;
-                $controller = $route->controller;
-                $middlewares = $route->middlewares ?? [];
 
-                $define = "Route::$method('$path', '$controller')";
-
-                if ( !empty($middlewares) ){
-                    $use = array_map(fn($a) => "'$a'", $middlewares);
-                    $define .= '->middleware(['.join(',', $use).'])';
-                }
-
-                $define .= ';';
-
-                $result[] = $define;
+                // dados (o RouteRegistrar registra): [método, path, controller, middlewares]
+                $result[] = [
+                    strtolower($route->type),
+                    (string) $route->path,
+                    (string) $route->controller,
+                    array_values($route->middlewares ?? [])
+                ];
             }
         }
 
@@ -451,7 +452,7 @@ class RoutesMap
             if ( empty($module_routes) ) continue;
 
             $module_routes = json_encode((object)$module_routes);
-            $module_name = str_replace("\\", "", $module_name);
+            $module_name = BuildFile::identifier(str_replace("\\", "", $module_name), 'Module');
             $module_method = $module_name . "Api";
 
             $module_declarations[] = 'const '.$module_method." = App.apiFactory($module_routes);";
@@ -459,11 +460,11 @@ class RoutesMap
         }
 
         //return $result;
-        return join("\r", [
+        return join("\n", [
             $alert,
             'import App from "app";',
             "\n",
-            join("\r", $module_declarations),
+            join("\n", $module_declarations),
             "\n",
             'export {'.join(", ", $module_methods) . '};'
         ]);
@@ -503,7 +504,7 @@ class RoutesMap
                 $view_placeholder_name = $view_placeholder->name ?? 'null';
 
                 if ( $view_placeholder_path && !in_array($view_placeholder_path, $result->imports) ){
-                    $result->imports[] = "import $view_placeholder_name from '$view_placeholder_path';";
+                    $result->imports[] = "import " . BuildFile::identifier((string) $view_placeholder_name, 'Placeholder') . " from " . BuildFile::js($view_placeholder_path) . ";";
                 }
 
                 //$is_custom_view_template = $route->view_template != APP_TEMPLATES_NAMESPACE . 'Main';
@@ -516,14 +517,14 @@ class RoutesMap
                 $element_name = array_map('ucfirst', $element_name);
                 $element_name = join("", $element_name);
                 $element_name = explode(".", $element_name)[0];
-                $element_name = str_replace("\\", "", $element_name);
+                $element_name = BuildFile::identifier(str_replace("\\", "", $element_name), 'View');
 
-                $element_declaration = "\tconst $element_name = lazy(() => import(`$view`));";
+                $element_declaration = "\tconst $element_name = lazy(() => import(" . BuildFile::js($view) . "));";
               
                 if ( in_array($element_declaration, $elements) ) continue;
 
                 $elements[] = $element_declaration;
-                $routes[] = "\t\t\t<Route key='$element_name' path='$path' element={<$element_name />} />";
+                $routes[] = "\t\t\t<Route key=" . BuildFile::js($element_name) . " path={" . BuildFile::js($path) . "} element={<$element_name />} />";
 
                 //echo $element_name. PHP_EOL;
 
@@ -534,20 +535,6 @@ class RoutesMap
 
         $result->elements = $elements;
         $result->items = $routes;
-
-        return $result;
-
-        if ( !empty($routes) ){
-            array_unshift($routes, "\treturn (", "\t\t<>");
-            $routes[] = "\t\t</>";
-            $routes[] = "\t)";
-        }
-
-        $routes[] = "}";
-     
-        $result->items[] = join("\r", $elements);
-        $result->items[] = "\n";
-        $result->items[] = join("\r", $routes);
 
         return $result;
     }      
@@ -753,16 +740,21 @@ class RoutesMap
         return $namespace . '\\Templates\\' . $viewTemplate;
     }
 
+    /**
+     * Aliases de middleware (módulos + app) => classe.
+     *
+     * @return array<string, string>
+     */
     private static function getMiddlewaresSets()
     {
-        $modules_configs = Module::getConfigs(':middlewares|namespace');
+        // "active" precisa vir no filtro (antes não vinha, então módulos desativados
+        // continuavam registrando middlewares)
+        $modules_configs = Module::getConfigs(':middlewares|namespace|active');
         $module_middlewares = [];
 
         foreach( $modules_configs as $module ){
 
-            $active = $module['active'] ?? true;
-
-            if ( $active === false ) return;
+            if ( ($module['active'] ?? true) === false ) continue;
 
             $middlewares_items = $module['middlewares'] ?? [];
             $module_namespace = $module['namespace'] ?? '';
@@ -781,33 +773,14 @@ class RoutesMap
 
         $app_middlewares = Core::config('middlewares') ?? [];
 
-        $middlewares_items = array_merge($module_middlewares, $app_middlewares);
-
         $middlewares = [];
-        $classes_flag = [];
 
-        foreach( $middlewares_items as $key => $class ){
-
-            // Add method
-            if ( !str_contains($class, '::') ){
-                $class .= '::class';
-            }   
-
-            // Add '/' inicial
-            if ( $class[0] != '\\' ){
-                $class = '\\'.$class;
-            }
-
-            $classes_flag[] = $class;
-            $middlewares[] = "'$key' => $class";
+        foreach( array_merge($module_middlewares, $app_middlewares) as $key => $class ){
+            // aceita "Classe", "\Classe" e "Classe::class" (formato antigo da config)
+            $middlewares[(string) $key] = ltrim(preg_replace('/::class$/', '', (string) $class), '\\');
         }
 
-        $content = ['Route::globalMiddlewares(['];
-        $content[] = join(",\r", $middlewares);
-        $content[] = ']);';
-        $content[] = ' ';
-
-        return join("\r", $content);
+        return $middlewares;
     }
 
     private static function getEditWarning()

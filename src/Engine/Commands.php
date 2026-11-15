@@ -5,6 +5,15 @@ namespace Wep\Engine;
 use Wep\Command\Console;
 use Wep\Core;
 
+/**
+ * Comandos do `php app`:
+ *
+ *   php app update [--strict]
+ *   php app install [--force]
+ *   php app create module <Nome> [-view]
+ *
+ * Opções (--x) podem vir em qualquer posição. --debug mostra o stack trace em caso de erro.
+ */
 class Commands
 {
     private static $actions = [
@@ -15,60 +24,84 @@ class Commands
 
     public static function run($argv=[], $config=[])
     {
-        $action = $argv[1] ?? null;
-        $sub_action = $argv[2] ?? null;
-        $action_params = $argv[3] ?? null;
-        $action_options = $argv[4] ?? '';
+        [$positional, $options] = self::parse(array_slice((array) $argv, 1));
 
-        if ( !$action ) {
-            Console::log("error", "Ação não informada");
+        if ( !$positional ){
+            Console::log("error", "Ação não informada. Comandos: " . implode(', ', array_keys(self::$actions)));
             return;
         }
 
-        $action = strtolower($action);
-        
-        if ( $sub_action ){
-            $action = "$action $sub_action";
-        }
+        // comando de duas palavras ("create module") só quando existe; senão a 2ª palavra é parâmetro
+        $two_words = strtolower($positional[0] . ' ' . ($positional[1] ?? ''));
+        $is_two_words = isset($positional[1]) && isset(self::$actions[$two_words]);
 
-        Core::start($config, true);
+        $action = $is_two_words ? $two_words : strtolower($positional[0]);
+        $params = $positional[$is_two_words ? 2 : 1] ?? null;
 
         $current_action = self::$actions[$action] ?? null;
 
-        if ( is_null($current_action) ) return Console::log("error", "Comando '$action' não reconhecido");
+        if ( is_null($current_action) ) return Console::log("error", "Comando '$action' não reconhecido. Comandos: " . implode(', ', array_keys(self::$actions)));
 
-        [$action_namespace, $action_method] = explode('@', $current_action);    
+        Core::start($config, true);
 
-       try {
+        [$action_namespace, $action_method] = explode('@', $current_action);
 
-        /**
-         * @todo criar classes especificas para rodar cada comando. 
-         * Os comandos executam services do core
-         */
-            $options = explode(' ', $action_options) ?? [];
-            $options = array_filter($options);
-            $result = call_user_func($action_namespace . '::'.$action_method, [
-                'params' => $action_params,
+        try {
+
+            $result = call_user_func($action_namespace . '::' . $action_method, [
+                'params' => $params,
                 'options' => $options
             ]);
 
             if ( !$result ) return Console::log("error", "Houve um erro desconhecido");
 
-            $has_erros = $result->error;
+            $has_errors = !empty($result->error);
 
-            Console::log($has_erros ? 'error' : 'success', $result->message);
+            Console::log($has_errors ? 'error' : 'success', $result->message ?? '');
 
-            if ( $has_erros && isset($result->data) ){
-                foreach( $result->data as $item ){
-                    Console::log($item->error ? 'error' : 'success', $item->message);
+            foreach( $result->warnings ?? [] as $warning ){
+                Console::log('alert', $warning);
+            }
+
+            if ( $has_errors ){
+                foreach( (array) ($result->data ?? []) as $item ){
+                    is_object($item)
+                        ? Console::log(!empty($item->error) ? 'error' : 'success', $item->message ?? '')
+                        : Console::log('error', (string) $item);
                 }
             }
 
-       } catch (\Throwable $th) {
+        } catch (\Throwable $th) {
             Console::log('error', $th->getMessage());
-            Console::log('error', json_encode($th->getTraceAsString()));
-       }
 
-        
+            if ( in_array('--debug', $options, true) ){
+                echo $th->getTraceAsString() . PHP_EOL;
+            }
+        }
+    }
+
+    /**
+     * Separa argumentos posicionais e opções (que começam com "-").
+     *
+     * @return array{0: string[], 1: string[]}
+     */
+    private static function parse(array $arguments): array
+    {
+        $positional = [];
+        $options = [];
+
+        foreach( $arguments as $argument ){
+            $argument = (string) $argument;
+
+            if ( $argument === '' ) continue;
+
+            if ( $argument[0] === '-' ){
+                $options[] = $argument;
+            } else {
+                $positional[] = $argument;
+            }
+        }
+
+        return [$positional, $options];
     }
 }

@@ -17,6 +17,42 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### Build: `php app update` (Módulo 6)
+
+#### Bugs corrigidos
+
+- **Hooks `each_route`: só o primeiro rodava.** Como os hooks do app rodam antes dos dos módulos, um único
+  hook `each_route` no `config/app.php` impedia o `AddRoleToRoutes` do template: **todas as rotas ficavam sem
+  permissão** e o update respondia "SUCESSO". Agora todos rodam em cadeia, e cada um recebe a rota devolvida
+  pelo anterior.
+- Hooks registrados só no app, para eventos que nenhum módulo usa (ex.: `before_build`), eram descartados.
+- Hook inexistente (erro de digitação) era ignorado em silêncio; agora vira aviso.
+- Mesmo path com métodos diferentes em módulos distintos: um módulo apagava as rotas do outro. Rotas
+  duplicadas (mesmo path e método) agora viram aviso.
+- Middlewares de módulos com `'active' => false` continuavam registrados.
+- `create module` aceitava `../` (criava arquivos fora de `src/Modules`) e gerava warnings ao criar as pastas.
+- `php app update --strict` (opções em qualquer posição) e mensagens de erro dos comandos sem stack trace
+  (use `--debug` para ver).
+
+#### Robustez
+
+- **Arquivos PHP gerados são dados (`var_export`), não código concatenado.** Um apóstrofo num path de rota
+  ou numa constante gerava erro de sintaxe e derrubava o site inteiro:
+  - `route-maps.build.php` é lido pelo `Wep\Router\RouteRegistrar`. Builds no formato antigo continuam
+    funcionando até o próximo `php app update`;
+  - `constants.build.php` guarda as constantes como dados. Placeholders `{OUTRA_CONSTANTE}` continuam
+    funcionando, e nomes inválidos são recusados.
+- **Escrita atômica** (`Wep\Engine\Builder\BuildFile`): uma requisição durante o deploy nunca inclui um
+  arquivo pela metade.
+- Quebras de linha `\n` nos arquivos gerados (antes `\r` sozinho). No JS gerado, paths e nomes passam
+  por `json_encode`, e nomes de componente viram identificadores válidos.
+
+#### Mudanças de comportamento
+
+1. **Hook que falha vira aviso (ALERTA) e o build conclui.** O `php app update` não exige mais banco de
+   dados (o hook do Menu só avisa). Para abortar em qualquer falha (CI/deploy): `php app update --strict`.
+2. Rotas duplicadas e hooks inexistentes aparecem como ALERTA na saída do update.
+
 ### View e XSS (Módulo 5)
 
 #### Segurança

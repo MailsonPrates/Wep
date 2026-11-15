@@ -50,6 +50,18 @@ class Module
         $name_parts = explode('__', $name);
         $name_parts = array_map('ucfirst', $name_parts);
 
+        // cada parte vira pasta e namespace: só identificadores (antes "../../X" criava
+        // arquivos fora de src/Modules)
+        foreach( $name_parts as $part ){
+            if ( !preg_match('/^[A-Z][A-Za-z0-9]*$/', $part) ){
+                throw new Exception("Nome do módulo inválido: \"$part\". Use letras e números, começando por letra (ex.: Pedido, Admin/Pedido)");
+            }
+        }
+
+        if ( count($name_parts) > 3 ){
+            throw new Exception('Nome do módulo inválido: no máximo 3 níveis (ex.: Admin/Vendas/Pedido)');
+        }
+
         // sets
         $is_vendor = $name_parts[0] === 'Vendor';
         $module_name = end($name_parts);
@@ -92,6 +104,13 @@ class Module
             $filename_parsed = str_replace('{module_name}', $module_name, $filename);
             $filename = $module_dir . '/' . $filename_parsed;
 
+            // pastas (Services/, Middlewares/): só cria o diretório
+            // (antes file_put_contents num caminho terminado em "/" gerava warnings)
+            if ( $method === 'dir' ){
+                if ( !is_dir($filename) ) mkdir($filename, 0775, true);
+                continue;
+            }
+
             $is_file_already_created = file_exists($filename) && !File::isEmpty($filename);
 
             if ( $is_file_already_created ) continue;
@@ -114,7 +133,7 @@ class Module
 
     private static function regularConfig($props)
     {
-        return join("\r", [
+        return join("\n", [
             '<?php',
             self::editAlert(),
             "return [",
@@ -147,7 +166,7 @@ class Module
         $module_name = $props['module_name'] ?? "ModuleName";
         $namespace = $props['namespace'] ?? "Namespace";
 
-        return join("\r", [
+        return join("\n", [
             '<?php',
             ' ',
             'namespace '.$namespace.';',
@@ -176,7 +195,7 @@ class Module
         $module_name = $props['module_name'] ?? "ModuleName";
         $namespace = $props['namespace'] ?? "Namespace";
 
-        return join("\r", [
+        return join("\n", [
             '<?php',
             ' ',
             "namespace ".$namespace.";",
@@ -204,7 +223,7 @@ class Module
     {
         $module_name = $props['module_name'];
 
-        return join("\r", [
+        return join("\n", [
             "export default function ".$module_name. "(){",
             " ",
             "}"
@@ -213,7 +232,7 @@ class Module
 
     private static function vendorConfig($props)
     {
-        return join("\r", [
+        return join("\n", [
             "<?php",
             " ",
             "return [",
@@ -244,7 +263,7 @@ class Module
         $module_name = $props['module_name'] ?? "ModuleName";
         $namespace = $props['namespace'] ?? "Namespace";
 
-        return join("\r", [
+        return join("\n", [
             "<?php",
             " ",
             "namespace $namespace;",
@@ -273,7 +292,7 @@ class Module
         $module_name = $props['module_name'] ?? "ModuleName";
         $namespace = $props['namespace'] ?? "Namespace";
 
-        return join("\r", [
+        return join("\n", [
             "<?php",
             " ",
             "namespace $namespace;",
@@ -294,7 +313,7 @@ class Module
 
     private static function editAlert()
     {
-        return join("\r", [
+        return join("\n", [
         " ",
         "/**",
         " * -----------------------------------------------",

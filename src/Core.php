@@ -13,6 +13,7 @@ use Wep\Http\OriginGuard;
 use Wep\Http\SecurityHeaders;
 use Wep\Router\Http\RouterHttpRequest;
 use Wep\Router\Route;
+use Wep\Router\RouteRegistrar;
 
 /**
  * Fachada da aplicação. A classe App do projeto estende esta classe.
@@ -96,16 +97,19 @@ class Core
             date_default_timezone_set($timezone);
         }
 
-        if (file_exists(APP_CONSTANTS_FILENAME)) {
-            include_once APP_CONSTANTS_FILENAME;
-        }
+        self::defineAppConstants();
 
         self::$started = true;
 
         Route::start(APP_URL, '@');
 
         if (file_exists(ROUTE_MAPS_BUILD_FILENAME_BACK)) {
-            include_once ROUTE_MAPS_BUILD_FILENAME_BACK;
+            $routes = include ROUTE_MAPS_BUILD_FILENAME_BACK;
+
+            // build novo: só dados. Build antigo (código PHP que registra as rotas) devolve 1.
+            if (is_array($routes)) {
+                RouteRegistrar::register($routes);
+            }
         }
 
         self::loadData();
@@ -367,6 +371,43 @@ class Core
 
         self::$env = $env;
         self::$envCache = $cache;
+    }
+
+    /**
+     * Constantes do app e dos módulos (storage/builds/constants.build.php, gerado pelo update).
+     * Formato novo: dados ['NOME' => ['value' => x] | ['parts' => [['const', 'DIR_ROOT'], ['text', '/x']]]].
+     * Formato antigo (define() gerado por concatenação) é só incluído.
+     */
+    private static function defineAppConstants(): void
+    {
+        if (!file_exists(APP_CONSTANTS_FILENAME)) {
+            return;
+        }
+
+        $constants = include APP_CONSTANTS_FILENAME;
+
+        if (!is_array($constants)) {
+            return;
+        }
+
+        foreach ($constants as $name => $spec) {
+            if (defined($name) || !is_array($spec)) {
+                continue;
+            }
+
+            if (array_key_exists('value', $spec)) {
+                define($name, $spec['value']);
+                continue;
+            }
+
+            $value = '';
+
+            foreach ($spec['parts'] ?? [] as [$type, $content]) {
+                $value .= $type === 'const' ? (defined($content) ? (string) constant($content) : '') : $content;
+            }
+
+            define($name, $value);
+        }
     }
 
     private static function loadData(): void
