@@ -2,6 +2,7 @@
 
 namespace Wep\Router;
 
+use Wep\Http\RequestPath;
 use Wep\Router\RouteGroups;
 use Wep\Router\Traits\RouterHelpers;
 use Wep\Router\Traits\RouteManagement;
@@ -61,9 +62,8 @@ class RouteCollection
     {
         $this->baseUrl = $baseUrl;
         $this->actionSeparator = $separator;
-        // filter_input lê a query string original; $_GET é o fallback (CLI/testes)
-        $route = filter_input(INPUT_GET, "route", FILTER_DEFAULT) ?? ($_GET["route"] ?? null);
-        $this->currentUri = is_string($route) && $route !== "" ? $route : "/";
+        // caminho real da URL (antes só ?route=: ver Wep\Http\RequestPath)
+        $this->currentUri = RequestPath::resolve($_SERVER, $_GET, $baseUrl);
     }
 
     /**

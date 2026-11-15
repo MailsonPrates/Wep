@@ -3,6 +3,33 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
+## [2.0.1] - 2026-11-15
+
+### Roteamento pelo caminho real da URL
+
+O roteador lia a rota só do `?route=` que o `.htaccess` acrescenta (`index.php?route=/$1 [QSA]`). Agora usa
+o caminho real da requisição (`REQUEST_URI`, sem o diretório base do `APP_URL`), pela nova
+`Wep\Http\RequestPath`. Roteador, proteção CSRF e `ErrorHandler` passam a usar o mesmo caminho (antes o CSRF
+já caía para o `REQUEST_URI` e o roteador não).
+
+#### Bugs corrigidos
+
+- **Sem a regra do `.htaccess` o app não funcionava**: Nginx, `php -S` e hospedagens com `mod_rewrite`
+  desligado tratavam toda URL como `/`. As páginas abriam (o HTML é o mesmo), mas toda chamada de API caía
+  em `/` e quebrava.
+- **O cliente trocava a rota pela query string**: com o `QSA`, `GET /login/?route=/admin/user/` chegava como
+  `route=/login/&route=/admin/user/` e o PHP ficava com o último, então o app executava `/admin/user/` com a
+  URL `/login/`. As permissões continuavam valendo (os middlewares são os da rota executada), mas logs,
+  monitoramento e regras de servidor/CDN por caminho viam outra rota.
+- Uma URL começando com `//` era lida pelo `parse_url` como domínio.
+
+#### Mudanças de comportamento
+
+1. `?route=` só é aceito quando a URL aponta para o front controller (`/` ou `/index.php`), para
+   hospedagens sem reescrita: `/index.php?route=/admin/`. Em qualquer outro caminho ele é ignorado.
+2. Acessar o app pelo prefixo da pasta pública (`/public/admin/user/`) deixa de cair na rota `/admin/user/`:
+   aponte o DocumentRoot (ou o `APP_URL`) para o endereço que os usuários usam.
+
 ## [2.0.0] - 2026-11-15
 
 Refatoração de segurança, performance e estrutura. As quebras de compatibilidade foram feitas só onde

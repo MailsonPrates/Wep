@@ -155,15 +155,10 @@ class Core
         return is_array($security) ? $security : [];
     }
 
+    /** O mesmo caminho que o roteador usa (Wep\Http\RequestPath). */
     private static function requestPath(): string
     {
-        $route = $_GET['route'] ?? null;
-
-        if (is_string($route) && $route !== '') {
-            return $route;
-        }
-
-        return (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
+        return \Wep\Http\RequestPath::current();
     }
 
     public static function isStarted(): bool

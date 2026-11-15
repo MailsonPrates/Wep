@@ -160,14 +160,10 @@ final class ErrorHandler
         $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
         $contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
         $requestedWith = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
-        $uri = $_SERVER['REQUEST_URI'] ?? '';
-        $route = $_GET['route'] ?? '';
-
         return str_contains($accept, 'application/json')
             || str_contains($contentType, 'application/json')
             || strcasecmp($requestedWith, 'XMLHttpRequest') === 0
-            || str_contains($uri, '/api/')
-            || (is_string($route) && str_contains($route, '/api/'));
+            || str_contains(\Wep\Http\RequestPath::current(), '/api/');
     }
 
     private static function jsonBody(Throwable $e, int $status): string
