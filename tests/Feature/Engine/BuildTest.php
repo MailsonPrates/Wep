@@ -149,6 +149,63 @@ describe('php app update', function () {
     });
 });
 
+/**
+ * Módulo vendor de teste (Modules/Vendor/Eco) com a config informada.
+ */
+function vendorModule(array $extra): void
+{
+    $dir = builderApp() . '/src/Modules/Vendor/Eco/config';
+
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+
+    file_put_contents("$dir/module.php", '<?php return ' . var_export($extra + [
+        'url' => 'https://api.eco.test',
+        'headers' => ['Authorization' => 'Bearer {{ env.ECO_KEY }}'],
+        'endpoints' => ['mensagem' => ['path' => '/mensagens', 'methods' => ['send:post']]],
+    ], true) . ';');
+}
+
+function vendorRoutes(): array
+{
+    return array_values(array_filter(
+        array_keys(include buildFile('route-maps.php')),
+        fn ($path) => str_starts_with($path, '/vendor/')
+    ));
+}
+
+describe('módulos vendor', function () {
+
+    afterEach(fn () => removeDir(testApp()['root'] . '/src/Modules/Vendor/Eco'));
+
+    it('não viram rota HTTP por padrão (antes: rota pública usando as credenciais da integração)', function () {
+        vendorModule([]);
+        Update::handle();
+
+        $map = include buildFile('vendor-endpoints.build.php');
+
+        expect(vendorRoutes())->toBe([])
+            ->and($map['Eco']['resources']['mensagem']['send']['url'])->toBe('https://api.eco.test/mensagens');
+    });
+
+    it("'expose' => true gera a rota com os middlewares do módulo", function () {
+        vendorModule(['expose' => true, 'routes' => ['use_middlewares' => ['isLogged']]]);
+        $result = Update::handle();
+
+        $route = (include buildFile('route-maps.php'))['/vendor/eco/api/mensagem/send/']['POST'];
+
+        expect($route['middlewares'])->toBe(['isLogged'])
+            ->and(implode("\n", $result->warnings))->not->toContain("vendor 'Eco'");
+    });
+
+    it('exposto sem middlewares gera ALERTA no build', function () {
+        vendorModule(['expose' => true]);
+        $result = Update::handle();
+
+        expect(vendorRoutes())->toBe(['/vendor/eco/api/mensagem/send/'])
+            ->and(implode("\n", $result->warnings))->toContain("Módulo vendor 'Eco' exposto ao front sem middlewares");
+    });
+});
+
 describe('BuildFile', function () {
 
     it('grava de forma atômica, sem deixar temporários', function () {

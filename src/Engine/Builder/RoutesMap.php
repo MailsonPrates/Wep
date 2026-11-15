@@ -251,6 +251,14 @@ class RoutesMap
         return self::$warnings;
     }
 
+    /**
+     * Registra um aviso do build (exibido como ALERTA no php app update).
+     */
+    public static function warn(string $message): void
+    {
+        self::$warnings[] = $message;
+    }
+
     private static function buildMap($route)
     {
         $route = Obj::set($route);

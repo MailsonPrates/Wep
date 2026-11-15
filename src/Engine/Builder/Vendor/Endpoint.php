@@ -174,91 +174,41 @@ class Endpoint
         return $headers_final;
     }
 
-        /**
+    /**
+     * Hooks do endpoint somados aos do módulo; "-nome" remove um hook herdado.
+     * (Antes a remoção usava array_splice dentro do próprio foreach e pulava itens.)
+     *
      * @param array $current
      * @param array $prev
-     * 
+     *
      * @return array
      */
     private static function mergeHooks($current, $prev)
     {
         $hooks_final = [
-            'beforeRequest' => $prev['beforeRequest'] ?? [],
-            'afterRequest' => $prev['afterRequest'] ?? [],
-            'onError' => $prev['onError'] ?? [],
-            'onSuccess' => $prev['onSuccess'] ?? []
+            'beforeRequest' => (array) ($prev['beforeRequest'] ?? []),
+            'afterRequest' => (array) ($prev['afterRequest'] ?? []),
+            'onError' => (array) ($prev['onError'] ?? []),
+            'onSuccess' => (array) ($prev['onSuccess'] ?? [])
         ];
 
-       foreach($current as $event => $hooks){
+        foreach( (array) $current as $event => $hooks ){
 
-            $hooks_to_remove = [];
+            $to_remove = [];
 
-            foreach($hooks as $name){
-                $is_remove = substr($name, 0, 1) === "-";
-
-                if ( $is_remove ){
-                    $hook_to_remove = substr($name, 1);
-                    $hooks_to_remove[] = $hook_to_remove;
+            foreach( (array) $hooks as $name ){
+                if ( str_starts_with($name, '-') ){
+                    $to_remove[] = substr($name, 1);
                     continue;
                 }
 
                 $hooks_final[$event][] = $name;
             }
 
-            foreach($hooks_final[$event] as $i => $item){
-
-                if ( in_array($item, $hooks_to_remove) ){
-                    array_splice($hooks_final[$event], $i, 1);
-                }
-            }
-       }
-
-       return $hooks_final;
-    }
-
-    /**
-     * @return object resource|url|headers|methods
-     */
-    private static function getData($resource, $endpoint, $module)
-    {
-        $methods = $endpoint['methods'] ?? [];
-
-        $response = Obj::set([
-            'resource' => $resource,
-            'methods' => $methods
-        ]);
-
-        $custom_data = self::getCustomData($url);
-
-        $response->url = $custom_data->url;
-        $response->headers = $custom_data->headers ?? [];
-
-        return $response;
-
-    }
-
-    /**
-     * @return object url|headers
-     */
-    private static function getCustomData($url='')
-    {
-        $is_shortcut = !is_array($url);
-
-        if ( $is_shortcut ) return Obj::set([
-            'url' => $url
-        ]);
-
-        $data = $url;
-
-        $response = Obj::set([
-            'url' => $data['url']
-        ]);
-
-        if ( !empty($data['headers']) ){
-            $response->headers = $data['headers'];
+            $hooks_final[$event] = array_values(array_diff($hooks_final[$event] ?? [], $to_remove));
         }
 
-        return $response;
+        return $hooks_final;
     }
 
     /**
@@ -288,54 +238,40 @@ class Endpoint
         return $response;
     }
 
+    /**
+     * Headers no formato do cURL ("Nome: valor"), com as variáveis do .env resolvidas.
+     * Quebras de linha são removidas: um valor com "\r\n" criaria headers extras.
+     */
     public static function getParsedHeaders($headers=[])
     {
         $headers_parsed = [];
 
         foreach( $headers as $key => $value ){
-            $headers_parsed[] = $key . ': ' . self::parseEnvVariables($value);
+            $name = preg_replace('/[^A-Za-z0-9-]/', '', (string) $key);
+            $value = preg_replace('/[\r\n\0]+/', ' ', self::parseEnvVariables((string) $value));
+
+            if ( $name !== '' ) $headers_parsed[] = $name . ': ' . trim($value);
         }
 
         return $headers_parsed;
     }
 
     /**
-     * Troca placeholders do arquivo env 
-     * 
-     * @example
-     * {{ env.NS_URL_V1 }}/products
-     * em: www.url.com.br/products
+     * Troca placeholders do .env: "{{ env.NS_URL_V1 }}/products" → "https://api.exemplo.com/products".
+     *
+     * Placeholders que não são "env." ficam como estão. (Antes a função se chamava de novo enquanto
+     * houvesse "{{" no texto: um "{{ versao }}" entrava em recursão infinita e derrubava o PHP.)
      */
     public static function parseEnvVariables($text='')
     {
-        $has_placeholder = str_contains($text, '{{');
+        $text = (string) $text;
 
-        if ( !$has_placeholder ) return $text;
+        if ( !str_contains($text, '{{') ) return $text;
 
-        $text_trim = str_replace(['{{ ', ' }}'], ['{{', '}}'], $text);
-        $parts = explode(' ', $text_trim);
-
-        $words_parsed = [];
-
-        foreach( $parts as $word ){
-            $is_placeholder = str_contains($word, '{{env.');
-            $parsed = $word;
-
-            if ( $is_placeholder ){
-                $key = Str::between($word, '{{', '}}');
-                $value = Core::config($key) ?? "";
-                $parsed = str_replace('{{'.$key.'}}', $value, $word);
-            }
-                
-            $words_parsed[] = $parsed;
-        }
-
-        $text_ready = join(' ', $words_parsed);
-
-
-        if ( str_contains($text_ready, "{{") ) return self::parseEnvVariables($text_ready);
-
-        return $text_ready;
+        return preg_replace_callback(
+            '/\{\{\s*env\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/',
+            fn ($match) => (string) (Core::config('env.' . $match[1]) ?? ''),
+            $text
+        );
     }
-
 }

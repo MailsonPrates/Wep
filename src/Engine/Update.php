@@ -119,6 +119,8 @@ class Update
     {
         $ok = BuildFile::php(VENDOR_ENDPOINTS_MAP_FILENAME, Vendor::buildEndpointsMap());
 
+        Vendor::flush();
+
         return Obj::set([
             'error' => !$ok,
             'message' => $ok ? 'Endpoints dos módulos vendor atualizados' : "Erro ao atualizar o arquivo de endpoint dos módulos vendor",

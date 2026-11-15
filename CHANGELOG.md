@@ -17,6 +17,45 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### Cliente HTTP e módulos vendor (Módulo 7)
+
+#### Segurança
+
+- **Módulos vendor não viram mais rotas HTTP por padrão.** Antes, todo endpoint de `src/Modules/Vendor/*`
+  ganhava uma rota pública (`/vendor/<modulo>/api/<recurso>/<metodo>/`). Qualquer visitante anônimo podia
+  usar o app como proxy para a API externa, com os headers e as chaves do `.env` (`{{ env.X }}`) que o
+  módulo injeta. Agora a rota só existe com `'expose' => true` na config do módulo, e usa os middlewares de
+  `routes.use_middlewares` (ex.: `['isLogged', 'checkPermission']`). Um módulo exposto sem middlewares gera
+  ALERTA no `php app update`. O uso pelo PHP (`Modulo::resource('x')->metodo()`) não muda.
+- **SSL:** `disableSSL()` deixava a verificação **ligada** e `'ssl' => false` chamava `disableCookies()`.
+  Os dois agora desligam a verificação, mas **só em DEV** (ex.: certificado autoassinado local). Fora de DEV,
+  a chamada é ignorada e registrada no log como WARNING, para que um `disableSSL()` esquecido não exponha
+  credenciais em produção. `CURLOPT_SSL_VERIFYHOST` acompanha a verificação do certificado.
+- Só `http`/`https`, também nos redirects. `file://`, `gopher://` etc. são recusados pelo cURL.
+- Headers dos módulos vendor: nomes inválidos são limpos, e `\r`, `\n` e `\0` são removidos dos valores. Uma
+  variável do `.env` com quebra de linha criava headers extras.
+
+#### Bugs corrigidos
+
+- `HttpRequest::get()/post()/...` (atalhos estáticos) davam fatal: a classe `Request` não existia.
+- `{{ algo }}` sem o prefixo `env.` na URL ou nos headers entrava em recursão infinita e derrubava o PHP.
+  Agora só `{{ env.NOME }}` é trocado; os outros ficam como estão.
+- `setQuery('page', 0)` / `setParams('id', 0)`: o `0` e o `""` eram tratados como "sem valor" (TypeError).
+- `isError()` considerava erro qualquer status `> 339`, incluindo redirects 3xx. Agora conta status `>= 400`
+  ou falha de conexão.
+- `curl_exec` com falha (`false`) gerava warnings. `curl_close` (deprecated no PHP 8.5) foi removido.
+- Hooks `"-nome"` (remover um hook herdado do módulo) pulavam itens.
+- O mapa dos vendors era relido do disco a cada chamada e dava warning quando faltava. Agora fica em cache
+  por processo, e módulos com `'active' => false` ficam de fora.
+- Um app sem a pasta `src/Modules/Vendor` lançava exceção ao listar os módulos vendor.
+
+#### Mudanças de comportamento
+
+1. **Front que chama módulo vendor (`VendorApi`/`/vendor/...`) precisa de `'expose' => true`** e de
+   middlewares na config do módulo. Sem isso, a rota deixa de existir depois do `php app update`.
+2. `disableSSL()` / `'ssl' => false` não têm efeito fora de DEV.
+3. `isError()` não considera mais 3xx como erro.
+
 ### Build: `php app update` (Módulo 6)
 
 #### Bugs corrigidos
