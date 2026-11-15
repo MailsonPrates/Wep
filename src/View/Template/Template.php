@@ -36,9 +36,13 @@ class Template
     {
         $template_class = $this->classname;
 
+        // antes: echo do nome da classe + exit (ignorava o ErrorHandler)
         if ( !class_exists($template_class) ){
-            echo "Classe não existe: $template_class";
-            exit();
+            throw new \RuntimeException("Template não encontrado: $template_class");
+        }
+
+        if ( !is_subclass_of($template_class, iTemplate::class) ){
+            throw new \RuntimeException("O template $template_class precisa implementar " . iTemplate::class);
         }
 
         $template = new $template_class();

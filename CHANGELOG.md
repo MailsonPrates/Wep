@@ -17,6 +17,50 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### View e XSS (Módulo 5)
+
+#### Segurança
+
+- **`Html` escapa os valores de atributo.** Antes eles iam crus (`"$key='$value'"`), e um `'` no valor
+  injetava atributos como `onmouseover=...`. Nomes de tag e de atributo passam a ser validados.
+- **O `<title>` é escapado.** A View monta o título com parâmetros da URL (`Pedido #{id}`), o que antes
+  permitia XSS refletido em qualquer template que usasse `document_title`.
+- Helpers novos: `Html::text($tag, $texto)` (conteúdo escapado), `Html::escape()` e `Html::json()`
+  (JSON seguro dentro de `<script>`: `<`, `>`, `&` e aspas viram `<`...).
+- **Content-Security-Policy opcional** (`Wep\Http\Csp`). Com `'security' => ['csp' => true]`, o navegador só
+  executa scripts do próprio site e os inline com o nonce da requisição. O `Html` coloca o nonce em todo
+  `<script>` que monta, inclusive os do build do webpack. Fontes extras por diretiva e `report_only` para testar:
+
+```php
+'security' => [
+    'csp' => [
+        'style-src' => ['https://fonts.googleapis.com'],
+        'font-src' => ['https://fonts.gstatic.com'],
+        'report_only' => true,
+    ],
+],
+```
+
+#### Mudanças de comportamento
+
+1. Atributos saem com aspas duplas e escapados. Atributo `true` vira booleano (`<input checked>`) e
+   `false`/`null` é omitido.
+2. O conteúdo dos elementos continua sendo HTML (`Html::get('div', $html)`, `'html' => ...`): é assim que os
+   elementos aninhados são montados. **Texto de usuário deve passar por `Html::text()` ou `Html::escape()`.**
+3. `Html::append()` com alvo diferente de `head`/`body` lança exceção (antes gerava erro de array).
+4. Template inexistente (ou que não implementa `iTemplate`) lança exceção, tratada pelo ErrorHandler.
+   Antes fazia `echo` do nome da classe e `exit`.
+
+#### Template (wep/project)
+
+- `Main.php`: o título da página volta a funcionar (usava `$route->view->title`, que não existe, e saía
+  vazio), `window.App` usa `Html::json()` e a página não quebra mais sem o build do webpack (registra um
+  aviso no log).
+- A senha temporária mostrada ao admin vem do servidor. A tela exibia fixo "mudar123".
+- O link de item de menu só aceita caminho interno ou `http(s)://` (bloqueia `javascript:`).
+- Removido o `InviteSignup.php` (namespace errado, nunca era carregado).
+- `config/app.php` traz a CSP sugerida, desligada.
+
 ### Sessão, autenticação e instalação (Módulo 4)
 
 #### Segurança

@@ -77,5 +77,12 @@ final class SecurityHeaders
         foreach (self::resolve($security, RouterHttpRequest::isHttps()) as $name => $value) {
             header("$name: $value");
         }
+
+        $csp = Csp::header($security);
+
+        if ($csp) {
+            Csp::activate();
+            header($csp[0] . ': ' . $csp[1]);
+        }
     }
 }
