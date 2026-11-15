@@ -2,6 +2,8 @@
 
 namespace Wep\Engine\Builder;
 
+use Wep\File;
+
 /**
  * Escrita dos arquivos gerados pelo `php app update` (storage/builds).
  *
@@ -26,34 +28,7 @@ final class BuildFile
      */
     public static function write(string $file, string $content): bool
     {
-        $dir = dirname($file);
-
-        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
-            return false;
-        }
-
-        $temp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
-
-        if (file_put_contents($temp, $content, LOCK_EX) === false) {
-            @unlink($temp);
-            return false;
-        }
-
-        if (!@rename($temp, $file)) {
-            // Windows: rename não substitui arquivo em uso por outro processo; tenta remover antes
-            @unlink($file);
-
-            if (!@rename($temp, $file)) {
-                @unlink($temp);
-                return false;
-            }
-        }
-
-        if (function_exists('opcache_invalidate') && str_ends_with($file, '.php')) {
-            @opcache_invalidate($file, true);
-        }
-
-        return true;
+        return File::putAtomic($file, $content);
     }
 
     /**

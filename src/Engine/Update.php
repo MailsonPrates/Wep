@@ -25,6 +25,9 @@ class Update
         BuilderHooks::reset();
         BuilderHooks::setStrict($strict);
 
+        // remove itens expirados e arquivos de cache no formato antigo (antes do Módulo 8)
+        \Wep\Cache::refresh();
+
         try {
             return self::build();
         } catch (\RuntimeException $e) {

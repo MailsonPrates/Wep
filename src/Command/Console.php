@@ -30,6 +30,10 @@ class Console
                 "title" => "ALERTA",
                 "colors" => self::getColor('white', 'yellow')
             ],
+            "info" => [
+                "title" => "INFO",
+                "colors" => self::getColor('white', 'blue')
+            ],
             "custom" => [
                 "title" => "",
                 "colors" => self::getColor('black', 'light')
@@ -40,14 +44,19 @@ class Console
             $mode = $modes[$props] ?? null;
 
             if ( !$mode && str_contains($props, ":") ){
-                $parts = explode(":", $props);
-                $title = $parts[1];
+                $parts = explode(":", $props, 2);
                 $mode = $modes["custom"];
 
-                $mode["title"] = $title;
+                $mode["title"] = $parts[1];
             }
 
-            echo self::setModeResponse($mode, $message);
+            // modo desconhecido: só a mensagem (antes gerava warnings e uma linha quebrada)
+            if ( !$mode ){
+                echo $message . "\n";
+                return;
+            }
+
+            self::setModeResponse($mode, $message);
         }
 
     }

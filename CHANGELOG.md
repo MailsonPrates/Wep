@@ -17,6 +17,52 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### Cache, arquivos e upload (Módulo 8)
+
+#### Segurança
+
+- **Upload: execução de código.** `File::upload` validava a extensão pelo *último* ponto do nome e salvava
+  com o *primeiro*: `foto.php.jpg` virava um `.php` em `public/assets/images`, uma pasta servida
+  direto. O tipo MIME vinha do navegador (`$file['type']`), então não protegia nada. Novo **`Wep\Upload`**:
+  - o tipo vem do **conteúdo** (`getimagesize` + `fileinfo`) e define a extensão salva. O nome e o `type`
+    enviados pelo cliente são ignorados;
+  - `directory` só aceita subpastas de `assets/images` (`..` e caracteres estranhos dão exceção);
+  - o tamanho é o real do arquivo, nomes usam `random_bytes`, e a falha ao mover vira exceção (antes o
+    caminho era devolvido mesmo sem o arquivo salvo).
+  - `File::upload()` continua existindo e chama `Upload::image()`. Mesmo retorno (caminho completo);
+    `Upload::relative()` dá o caminho relativo a `assets/images`.
+- **Cache: a chave virava padrão do `glob`.** `Cache::get('senha_*')` lia a chave de outra pessoa,
+  `delete('*')` apagava tudo, e `a/b` colidia com `b`. Agora o arquivo é `cache.<sha1 da chave>.json`.
+- Pastas criadas com `0775` (antes `0777`: qualquer usuário do servidor podia gravar).
+
+#### Bugs corrigidos
+
+- **Cache nunca expirava:** `get()` não conferia a validade. Agora confere (a validade fica dentro do arquivo).
+- Escrita do cache e de `File::write()` **atômica** (temporário + `rename`, via `File::putAtomic()`, usado
+  também pelo build). Antes, quem lia durante a escrita pegava o arquivo vazio ou pela metade.
+- `Cache::set` sem a pasta `storage/cache` dava `TypeError`; agora cria a pasta.
+- `File::isEmpty()` devolvia `0` (vazio) ou `false` (com conteúdo), os dois "falsos". Agora devolve
+  `bool`: `true` se não existe ou está vazio.
+- `new File($path)` criava o arquivo e as pastas só para ler; `write($array)` sem o 2º parâmetro dava
+  `TypeError` (agora arrays e objetos viram JSON).
+- `File::deleteAll()` não apagava arquivos ocultos, e o `rmdir` da pasta falhava.
+- `Console::log()` com modo desconhecido gerava warnings; novo modo `info`.
+
+#### Novidades
+
+- `Cache::has()`, `Cache::flush()`, `Cache::get($key, $default)`.
+- `File::putAtomic()`, `File::ensureDir()`.
+- O `php app update` remove o cache expirado e os arquivos no formato antigo.
+
+#### Mudanças de comportamento
+
+1. Cache gravado **sem validade explícita** (`Cache::set($k, $v)`) passa a expirar de fato após
+   `Cache::$expire` (1 h). Use `false` para não expirar.
+2. O cache antigo (`cache.<chave>.<validade>`) não é mais lido: é recriado na primeira gravação.
+3. `Upload`/`File::upload` recusam arquivos cujo conteúdo não é JPEG, PNG, GIF ou WebP, mesmo com a
+   extensão certa. A extensão salva é a do conteúdo (um PNG enviado como `.jpg` é salvo como `.png`).
+4. `File::isEmpty()` devolve `true` para arquivo inexistente.
+
 ### Cliente HTTP e módulos vendor (Módulo 7)
 
 #### Segurança
