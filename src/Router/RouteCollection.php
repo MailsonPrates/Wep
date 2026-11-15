@@ -335,7 +335,10 @@ class RouteCollection
      */
     protected function newRequest(RouteManager $route, array $params): Http\RouterHttpRequest
     {
-        return new Http\RouterHttpRequest($this->baseUrl, $route->getOriginalRoute(), $params);
+        $request = new Http\RouterHttpRequest($this->baseUrl, $route->getOriginalRoute(), $params);
+        Http\RouterHttpRequest::setCurrent($request);
+
+        return $request;
     }
 
     /**

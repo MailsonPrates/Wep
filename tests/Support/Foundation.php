@@ -42,6 +42,45 @@ function tempEnv(string $content): string
     return $file;
 }
 
+class TestApp extends \Wep\Core {}
+
+/**
+ * Aplicação temporária iniciada uma única vez por processo (Core::start define constantes globais).
+ *
+ * @return array{root: string, config: array, instance: TestApp}
+ */
+function testApp(): array
+{
+    static $app = null;
+
+    if ($app !== null) return $app;
+
+    $root = tempDir('app');
+
+    foreach (['config', 'public/assets/css', 'storage/builds', 'storage/log', 'storage/cache', 'src/Modules'] as $dir) {
+        mkdir("$root/$dir", 0777, true);
+    }
+
+    file_put_contents("$root/config/.env", "ENV=PROD\nAPP_URL=http://wep.test\nWEP_CORE_FLAG=false\nWEP_CORE_EMPTY=\n");
+    file_put_contents("$root/config/data.php", "<?php return ['empresa' => 'ACME', 'vazio' => ''];");
+    file_put_contents("$root/public/assets/css/main.css", 'body{}');
+    touch("$root/public/assets/css/main.css", 1700000000);
+
+    $config = [
+        'name' => 'App de Teste',
+        'title' => '',
+        'dir' => ['root' => $root],
+        'timezone' => 'America/Sao_Paulo',
+        'error_handler' => false,
+    ];
+
+    $instance = TestApp::start($config);
+
+    register_shutdown_function(fn () => forgetEnv('ENV', 'APP_URL', 'WEP_CORE_FLAG', 'WEP_CORE_EMPTY'));
+
+    return $app = ['root' => $root, 'config' => $config, 'instance' => $instance];
+}
+
 /** Remove variáveis de ambiente criadas pelos testes (getenv, $_ENV e $_SERVER). */
 function forgetEnv(string ...$names): void
 {

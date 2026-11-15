@@ -23,6 +23,9 @@ class RouterHttpRequest
     /** @var string|null corpo bruto (php://input), lido uma única vez por processo */
     private static ?string $rawBody = null;
 
+    /** @var self|null request do ciclo atual (definido pelo router no dispatch) */
+    private static ?self $current = null;
+
     private $fullUrl;
 
     private $httpMethod;
@@ -71,6 +74,22 @@ class RouterHttpRequest
         if ($this->httpMethod !== 'GET' && $this->httpMethod !== 'HEAD') {
             $this->setData();
         }
+    }
+
+    /**
+     * Request da requisição em andamento (null fora do dispatch, ex.: CLI).
+     */
+    public static function current(): ?self
+    {
+        return self::$current;
+    }
+
+    /**
+     * @internal definido pela RouteCollection; null limpa (testes).
+     */
+    public static function setCurrent(?self $request): void
+    {
+        self::$current = $request;
     }
 
     /**

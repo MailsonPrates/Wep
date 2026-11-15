@@ -17,6 +17,79 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
+### CRUD automático: Controller/Model (Módulo 3)
+
+#### Segurança
+
+O CRUD automático repassava o payload do cliente direto para o modo verbose do Model. Qualquer usuário com
+acesso a um `get` conseguia, por exemplo, mandar `leftJoin` com a tabela `user` e ler os hashes de senha,
+ou mandar `debug: true` e receber a query montada. Agora o payload do cliente passa pelo
+**`Wep\Api\ClientQuery`** antes de virar query:
+
+- só são aceitas as chaves que o front envia: `fields`, `where`, `or`, `andOr`, `orderBy`, `limit` e `page`.
+  `leftJoin`, `debug`, `raw`, `fetch` e `onDuplicateUpdate` são descartados;
+- colunas só da tabela do módulo (`outra_tabela.col` e `banco.tabela.col` são recusados);
+- colunas ocultas não podem ser lidas, filtradas, ordenadas nem gravadas, e saem do resultado em `SELECT *`.
+  `password` é sempre oculta;
+- `update`/`delete` exigem uma condição de igualdade (`=` ou `in`) e não aceitam `or`/`andOr`;
+  um update sem `where` (inclusive com payload plano) é recusado;
+- `limit` com teto de 1000 por padrão, aplicado também quando o cliente não envia `limit`;
+- `fillable` opcional restringe as colunas que `create`/`update` podem gravar (*mass assignment*).
+
+**Proteção automática dos apps existentes:** quando um Model recebe **exatamente** o `$request->data()`
+da requisição atual (o padrão `UserGroup::update($request->data())` do template), o saneamento é aplicado
+sozinho. Chamadas com arrays montados no servidor continuam com acesso total (inclusive `leftJoin`), assim
+como chamadas fora de uma requisição (CLI, jobs).
+
+**Migração necessária** quando o código **altera** o payload antes de gravar (a detecção automática não
+cobre esse caso):
+
+```php
+// antes
+$data = $request->data();
+$data['fields']['slug'] = $slug;
+Menu::create($data);
+
+// depois
+$data = Menu::clientQuery($request->data(), 'create');   // lança Wep\Api\ClientQueryException (400)
+$data['fields']['slug'] = $slug;                         // valores do servidor depois do saneamento
+Menu::create($data);
+```
+
+Para tabelas acessadas com `DB::table()` (sem Model): `ClientQuery::sanitize($request->data(), 'update', ['table' => 'menu_items'])`.
+
+Para localizar os pontos a revisar: procure `$request->data()` (ou `->all()`) repassado para
+`DB::table(...)` ou para um Model depois de ser alterado.
+
+Config opcional por módulo (`config/module.php`):
+
+```php
+'api' => [
+    'hidden'     => ['code', 'token'],   // além de password
+    'fillable'   => ['name', 'roles'],   // se definido, só essas colunas são gravadas
+    'max_limit'  => 200,                 // padrão 1000
+    'allow_bulk' => false,               // true libera update/delete em massa e or/andOr
+],
+```
+
+- **Módulos vendor:** `debug` vindo do cliente é ignorado (devolvia os headers e as credenciais da API
+  externa). O `debug` da config do módulo só vale em DEV. Os `params` do cliente, substituídos na URL da
+  API externa, são codificados com `rawurlencode` (`../`, `?` e `#` não mudam mais o destino).
+- **Mensagens de erro:** exceções no CRUD automático e nos módulos vendor vão para o log. O cliente recebe
+  a mensagem só em DEV; fora de DEV recebe "Não foi possível concluir a operação".
+
+#### Mudanças de comportamento
+
+1. Payloads do cliente com colunas de outras tabelas, colunas ocultas, `update`/`delete` sem igualdade ou
+   com `or`/`andOr` respondem `{error: true, message, http_code: 400}`.
+2. `get` sem `limit` passa a ter `LIMIT 1000` (configurável com `max_limit`).
+3. `SELECT *` pelo CRUD automático não devolve `password` (nem as colunas de `hidden`).
+4. `delete` com payload plano (`{id: 5}`) vira `where [[id, '=', 5]]` (formato lista).
+
+#### Bugs corrigidos
+
+- `App::start()` valida `dir.root` mesmo quando a aplicação já foi iniciada.
+
 ### HTTP + Router (Módulo 2)
 
 #### Segurança

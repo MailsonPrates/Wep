@@ -2,23 +2,23 @@
 
 namespace Wep;
 
-use Wep\Response;
+use Wep\Api\ClientQueryException;
+use Wep\Foundation\ErrorHandler;
 use Wep\Router\Http\RouterHttpRequest;
-use Exception;
 
 trait Controller
 {
     public function moduleApiControllerHandle(RouterHttpRequest $request)
     {
         $route_data = $request->routeMapData();
-        $is_vendor_module = $route_data->vendor;
+        $is_vendor_module = $route_data->vendor ?? false;
 
         if ( $is_vendor_module ) return $this->handleVendorModule($route_data, $request);
 
-        $route_method_to_call = $route_data->method;
+        $route_method_to_call = $route_data->method ?? null;
 
-        $is_default_method = in_array($route_method_to_call, ['get', 'create', 'delete', 'update']);
-        $is_invalid_custom_method_call = !$is_default_method && !method_exists($this, $route_method_to_call);
+        $is_default_method = in_array($route_method_to_call, ['get', 'create', 'delete', 'update'], true);
+        $is_invalid_custom_method_call = !$is_default_method && !method_exists($this, (string) $route_method_to_call);
 
         $response = new Response;
 
@@ -29,7 +29,7 @@ trait Controller
         $module_class =  $route_data->namespace . '\\' . $route_data->module_last;
 
         if ( $is_default_method ) return $this->handleDefaultMethods(
-            $route_method_to_call, 
+            $route_method_to_call,
             $request,
             $response,
             $module_class
@@ -38,55 +38,88 @@ trait Controller
         return $this->{$route_method_to_call}($request, $response, $module_class);
     }
 
+    /**
+     * CRUD automático (get/create/update/delete).
+     *
+     * O payload do cliente passa pelo ClientQuery do Model antes de virar query: sem leftJoin,
+     * debug ou raw, colunas só da tabela do módulo, ocultas bloqueadas, update/delete por
+     * igualdade. Antes o $request->data() ia direto para o modo verbose do Model.
+     */
     protected function handleDefaultMethods($method, $request, $response, $module_class)
     {
-        if ( !class_exists($module_class) ) return $response->json(Response::error("Class não existe: ". $module_class));
+        if ( !class_exists($module_class) ) return $response->json(Response::error("Módulo indisponível"));
 
         try {
 
-            // Verifica se método existe no ModuleApi
-            // para casos de substituição do método default
-            $method_exist_in_module_api = method_exists($this, $method);
-
-            if ( $method_exist_in_module_api ){
-                // Executa método substituto
+            // Método de mesmo nome no ModuleApi substitui o padrão
+            if ( method_exists($this, $method) ){
                 return call_user_func_array([$this, $method], [$request, $response]);
             }
 
-            $data = $request->data();
-            $method_to_call = $module_class . "::$method";
+            if ( !method_exists($module_class, 'clientQuery') ){
+                return $response->json(Response::error("O módulo não expõe CRUD automático (Model ausente)"));
+            }
 
-            $result = $method_to_call($data);
+            $query = $module_class::clientQuery($request->data(), $method);
+            $result = $module_class::$method($query);
+
             return $response->json($result);
 
+        } catch (ClientQueryException $e) {
+            return $response->json(Response::error($e->getMessage(), ['http_code' => 400]));
+
         } catch (\Throwable $e) {
-            /** @todo add trace em env dev */
-            return $response->json($e->getMessage(), false);
+            return $response->json(Response::error(self::publicErrorMessage($e)));
         }
     }
 
     protected function handleVendorModule($routeData, RouterHttpRequest $request)
     {
         $response = new Response();
-        
+
         try {
 
             $method = $routeData->method;
             $resource = $routeData->resource;
             $module_class = $routeData->namespace . '\\' . $routeData->module;
-        
+
             $vendor_class = $module_class . '::resource';
             $vendor_resource = $vendor_class($resource);
 
             $data = $request->data();
+
+            // "debug" vindo do cliente devolvia as opções da requisição externa, incluindo
+            // headers e credenciais da API. Debug só pela config do módulo (e só em DEV).
+            if ( is_array($data) ) unset($data['debug']);
+
+            // params do cliente são substituídos na URL da API externa ({id}): codificados para
+            // que "../", "?" ou "#" não mudem o caminho/destino da chamada
+            if ( isset($data['params']) && is_array($data['params']) ){
+                $data['params'] = array_map(
+                    fn ($value) => is_scalar($value) ? rawurlencode((string) $value) : '',
+                    $data['params']
+                );
+            }
 
             $result = $vendor_resource->{$method}($data);
 
             return $response->json($result);
 
         } catch (\Throwable $e) {
-            /** @todo add trace em env dev */
-            return $response->json($e->getMessage(), false);
+            return $response->json(Response::error(self::publicErrorMessage($e)));
         }
+    }
+
+    /**
+     * Mensagem de erro para o cliente: a da exceção em DEV; genérica fora de DEV
+     * (a exceção completa vai para o log).
+     */
+    private static function publicErrorMessage(\Throwable $e): string
+    {
+        ErrorHandler::report($e);
+
+        $isDev = defined('ENV_DEV') && ENV_DEV;
+
+        return $isDev ? $e->getMessage() : 'Não foi possível concluir a operação';
     }
 }

@@ -55,15 +55,15 @@ class Core
      */
     public static function start($config = [])
     {
-        if (self::$started) {
-            return new static();
-        }
-
         $config = (array) $config;
         $root = $config['dir']['root'] ?? null;
 
         if (!is_string($root) || $root === '') {
             throw new \InvalidArgumentException("Diretório root não informado na configuração do App (dir.root)");
+        }
+
+        if (self::$started) {
+            return new static();
         }
 
         self::$config = $config;

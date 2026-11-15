@@ -4,48 +4,12 @@ use Wep\Core;
 
 /*
  * Core::start() define constantes globais e estado estático: roda uma única vez por processo.
- * Os testes deste arquivo compartilham a mesma aplicação temporária (testApp()).
+ * Todos os testes compartilham a mesma aplicação temporária (testApp(), em tests/Support/Foundation.php).
  */
-
-class TestApp extends Core {}
-
-function testApp(): array
-{
-    static $app = null;
-
-    if ($app !== null) return $app;
-
-    $root = tempDir('app');
-
-    foreach (['config', 'public/assets/css', 'storage/builds', 'storage/log', 'storage/cache', 'src/Modules'] as $dir) {
-        mkdir("$root/$dir", 0777, true);
-    }
-
-    file_put_contents("$root/config/.env", "ENV=PROD\nAPP_URL=http://wep.test\nWEP_CORE_FLAG=false\nWEP_CORE_EMPTY=\n");
-    file_put_contents("$root/config/data.php", "<?php return ['empresa' => 'ACME', 'vazio' => ''];");
-    file_put_contents("$root/public/assets/css/main.css", 'body{}');
-    touch("$root/public/assets/css/main.css", 1700000000);
-
-    $config = [
-        'name' => 'App de Teste',
-        'title' => '',
-        'dir' => ['root' => $root],
-        'timezone' => 'America/Sao_Paulo',
-        'error_handler' => false,
-    ];
-
-    $instance = TestApp::start($config);
-
-    return $app = ['root' => $root, 'config' => $config, 'instance' => $instance];
-}
-
-afterAll(fn () => forgetEnv('ENV', 'APP_URL', 'WEP_CORE_FLAG', 'WEP_CORE_EMPTY'));
 
 describe('Core::start', function () {
 
     it('lança exceção clara quando falta dir.root (antes devolvia null e o run() quebrava)', function () {
-        expect(Core::isStarted())->toBeFalse();
-
         TestApp::start(['name' => 'sem root']);
     })->throws(InvalidArgumentException::class, 'dir.root');
 
