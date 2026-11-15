@@ -17,77 +17,103 @@ seção **Mudanças de comportamento** de cada entrada.
   roda antes do Composer.
 - Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
 
-### CRUD automático: Controller/Model (Módulo 3)
+### CRUD automático: o front não monta mais queries (Módulo 3)
 
-#### Segurança
+> **Quebra de compatibilidade.** Atualize o front (`api-factory`) e os métodos sobrescritos dos módulos
+> junto com o Core. Veja "Como migrar" abaixo.
 
-O CRUD automático repassava o payload do cliente direto para o modo verbose do Model. Qualquer usuário com
-acesso a um `get` conseguia, por exemplo, mandar `leftJoin` com a tabela `user` e ler os hashes de senha,
-ou mandar `debug: true` e receber a query montada. Agora o payload do cliente passa pelo
-**`Wep\Api\ClientQuery`** antes de virar query:
+#### Por quê
 
-- só são aceitas as chaves que o front envia: `fields`, `where`, `or`, `andOr`, `orderBy`, `limit` e `page`.
-  `leftJoin`, `debug`, `raw`, `fetch` e `onDuplicateUpdate` são descartados;
-- colunas só da tabela do módulo (`outra_tabela.col` e `banco.tabela.col` são recusados);
-- colunas ocultas não podem ser lidas, filtradas, ordenadas nem gravadas, e saem do resultado em `SELECT *`.
-  `password` é sempre oculta;
-- `update`/`delete` exigem uma condição de igualdade (`=` ou `in`) e não aceitam `or`/`andOr`;
-  um update sem `where` (inclusive com payload plano) é recusado;
-- `limit` com teto de 1000 por padrão, aplicado também quando o cliente não envia `limit`;
-- `fillable` opcional restringe as colunas que `create`/`update` podem gravar (*mass assignment*).
+O front montava a query (`where`, `orderBy`, `limit`...) e o servidor a repassava para o modo verbose do
+Model. Qualquer usuário com acesso a um `get` conseguia, por exemplo, mandar `leftJoin` com a tabela `user`
+e ler os hashes de senha, mandar `debug: true` e receber a query, ou atualizar e apagar a tabela inteira
+com `where id > 0`. Em vez de filtrar cada caso, o cliente deixou de enviar queries.
 
-**Proteção automática dos apps existentes:** quando um Model recebe **exatamente** o `$request->data()`
-da requisição atual (o padrão `UserGroup::update($request->data())` do template), o saneamento é aplicado
-sozinho. Chamadas com arrays montados no servidor continuam com acesso total (inclusive `leftJoin`), assim
-como chamadas fora de uma requisição (CLI, jobs).
+#### O novo contrato (`Wep\Api\ClientPayload`)
 
-**Migração necessária** quando o código **altera** o payload antes de gravar (a detecção automática não
-cobre esse caso):
+| Front | Payload | Servidor |
+|---|---|---|
+| `Api.get()` | `{}` | lista, com ordem e limite da config do módulo |
+| `Api.get(id)` | `{id}` | um registro (`data` é o objeto; 404 se não existir) |
+| `Api.get({status: 'on', page: 2})` | `{filters, page, per_page}` | só filtros **declarados** no módulo, por igualdade (array vira `IN`) |
+| `Api.create(campos)` | `{fields}` | insert |
+| `Api.update(id, campos)` | `{id, fields}` | update pela chave primária |
+| `Api.delete(id)` | `{id}` | delete pela chave primária |
 
-```php
-// antes
-$data = $request->data();
-$data['fields']['slug'] = $slug;
-Menu::create($data);
+- O servidor só lê `id`, `fields`, `filters`, `page` e `per_page`. As chaves `custom` da rota e a query
+  string, que também estão no `$request->data()`, não viram mais colunas.
+- **Chaves de query recebem 400** (`where`, `or`, `andOr`, `orderBy`, `limit`, `leftJoin`, `debug`, `raw`,
+  `fetch`, `onDuplicateUpdate`), com uma mensagem que aponta o formato novo.
+- Colunas ocultas não são lidas nem gravadas e saem do resultado. `password` é sempre oculta.
+- A chave primária não é enviada pelo cliente: não dá para trocá-la no update nem escolhê-la no create
+  (a menos que esteja em `fillable`).
+- `fillable` restringe as colunas graváveis (*mass assignment*).
+- Listas têm teto (`max_limit`, padrão 1000). A paginação usa `per_page` (padrão 50).
 
-// depois
-$data = Menu::clientQuery($request->data(), 'create');   // lança Wep\Api\ClientQueryException (400)
-$data['fields']['slug'] = $slug;                         // valores do servidor depois do saneamento
-Menu::create($data);
-```
-
-Para tabelas acessadas com `DB::table()` (sem Model): `ClientQuery::sanitize($request->data(), 'update', ['table' => 'menu_items'])`.
-
-Para localizar os pontos a revisar: procure `$request->data()` (ou `->all()`) repassado para
-`DB::table(...)` ou para um Model depois de ser alterado.
-
-Config opcional por módulo (`config/module.php`):
+Config do módulo (`config/module.php`):
 
 ```php
 'api' => [
-    'hidden'     => ['code', 'token'],   // além de password
-    'fillable'   => ['name', 'roles'],   // se definido, só essas colunas são gravadas
-    'max_limit'  => 200,                 // padrão 1000
-    'allow_bulk' => false,               // true libera update/delete em massa e or/andOr
+    'primary_key' => 'user_group_id',          // padrão "id"
+    'order_by'    => ['user_group_id', 'DESC'],
+    'filters'     => ['status'],               // colunas que o cliente pode filtrar
+    'hidden'      => ['code'],                 // além de password
+    'fillable'    => ['name', 'roles'],        // se definido, só essas colunas são gravadas
+    'per_page'    => 50,
+    'max_limit'   => 1000,
 ],
 ```
+
+#### API nova do Model
+
+- Para o cliente: `X::fromClient('get'|'create'|'update'|'delete')` valida o payload da requisição atual e
+  executa. `X::clientPayload('update')` só valida e devolve `{id, fields}` para quem precisa complementar no
+  servidor (lança `Wep\Api\InvalidPayloadException`, status 400).
+- Para o servidor: `X::find($id)`, `X::list($filtros, $pagina, $porPagina)`, `X::updateById($id, $campos)` e
+  `X::deleteById($id)`. O modo verbose (`X::get([...])` com `leftJoin`, `where` livre etc.) **continua
+  disponível para o código do servidor**.
+- Repassar o payload bruto do cliente para o Model (`X::update($request->data())`) é recusado com 400.
+- Tabelas sem Model (`DB::table()`): `ClientPayload::parse($request->data(), 'update', ['table' => 'menu_items', 'fillable' => [...]])`.
+
+#### Como migrar
+
+Front:
+
+| Antes | Depois |
+|---|---|
+| `Api.where("id", id).get()` | `Api.get(id)` (a resposta é o objeto, não `data[0]`) |
+| `Api.orderBy("id", "DESC").get()` | `Api.get()` + `'order_by' => ['id', 'DESC']` no módulo |
+| `Api.where("id", id).update({...})` | `Api.update(id, {...})` |
+| `Api.where("id", id).update("status", "x")` | `Api.update(id, {status: "x"})` |
+| `Api.delete("id", id)` / `Api.where("id", id).delete()` | `Api.delete(id)` |
+| `Api.where(...).metodoCustomizado(payload)` (rota com `custom.method`) | `Api.metodoCustomizado(id, payload)` |
+| filtros com `where("status", "on")` | `Api.get({status: "on"})` + `'filters' => ['status']` |
+
+Métodos sobrescritos no servidor:
+
+```php
+// antes
+$update = UserGroup::update($request->data());
+
+// depois
+$update = UserGroup::fromClient('update');
+
+// quando o servidor complementa os dados
+$fields = Menu::clientPayload('create')['fields'];
+$fields['slug'] = gerarSlug($fields['name']);
+Menu::create(['fields' => $fields]);
+```
+
+Configure `primary_key` nos módulos cuja chave não se chama `id`.
+
+#### Também neste módulo
 
 - **Módulos vendor:** `debug` vindo do cliente é ignorado (devolvia os headers e as credenciais da API
   externa). O `debug` da config do módulo só vale em DEV. Os `params` do cliente, substituídos na URL da
   API externa, são codificados com `rawurlencode` (`../`, `?` e `#` não mudam mais o destino).
 - **Mensagens de erro:** exceções no CRUD automático e nos módulos vendor vão para o log. O cliente recebe
   a mensagem só em DEV; fora de DEV recebe "Não foi possível concluir a operação".
-
-#### Mudanças de comportamento
-
-1. Payloads do cliente com colunas de outras tabelas, colunas ocultas, `update`/`delete` sem igualdade ou
-   com `or`/`andOr` respondem `{error: true, message, http_code: 400}`.
-2. `get` sem `limit` passa a ter `LIMIT 1000` (configurável com `max_limit`).
-3. `SELECT *` pelo CRUD automático não devolve `password` (nem as colunas de `hidden`).
-4. `delete` com payload plano (`{id: 5}`) vira `where [[id, '=', 5]]` (formato lista).
-
-#### Bugs corrigidos
-
+- `RouterHttpRequest::current()`: o request da requisição em andamento.
 - `App::start()` valida `dir.root` mesmo quando a aplicação já foi iniciada.
 
 ### HTTP + Router (Módulo 2)

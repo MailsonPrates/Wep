@@ -25,7 +25,7 @@ function crudDatabase(bool $reset = true): PDO
 
         file_put_contents("$dir/module.php", "<?php return " . var_export([
             'db' => ['table' => 'produtos'],
-            'api' => ['hidden' => ['segredo'], 'max_limit' => 3],
+            'api' => ['hidden' => ['segredo'], 'filters' => ['status'], 'order_by' => ['id', 'DESC'], 'max_limit' => 3, 'per_page' => 2],
             'routes' => [],
         ], true) . ";");
 

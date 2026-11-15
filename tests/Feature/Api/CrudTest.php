@@ -15,101 +15,131 @@ function ids(array $response): array
     return array_column($response['data'] ?? [], 'id');
 }
 
-describe('CRUD automático (Controller → ClientQuery → Model)', function () {
+function count_rows(string $where = '1 = 1'): int
+{
+    return (int) crudDatabase(false)->query("SELECT COUNT(*) FROM produtos WHERE $where")->fetchColumn();
+}
 
-    it('get normal do front funciona e respeita max_limit (3)', function () {
-        $r = crudCall('get', ['fields' => [], 'where' => [['status', '=', 'on']], 'orderBy' => ['id'], 'limit' => [], 'page' => 1]);
+describe('CRUD automático: contrato por id', function () {
 
-        expect($r['error'])->toBeFalse()
-            ->and(ids($r))->toBe([1, 2, 4]);
-
-        expect(ids(crudCall('get', [])))->toHaveCount(3);
+    it('get(): lista com ordem e teto da config (order_by id DESC, max_limit 3)', function () {
+        expect(ids(crudCall('get', [])))->toBe([5, 4, 3]);
     });
 
-    it('SELECT * não devolve colunas ocultas (password sempre, segredo pela config)', function () {
-        $row = crudCall('get', ['where' => [['id', '=', 1]]])['data'][0];
+    it('get(id): um registro, sem colunas ocultas', function () {
+        $r = crudCall('get', ['id' => 2]);
 
-        expect($row)->toHaveKeys(['id', 'nome', 'preco', 'status'])
-            ->and($row)->not->toHaveKey('password')
-            ->and($row)->not->toHaveKey('segredo');
+        expect($r['data'])->toBe(['id' => 2, 'nome' => 'Caderno', 'preco' => 15, 'status' => 'on']);
     });
 
-    it('ATAQUE: leftJoin com users para ler hashes de senha é recusado', function () {
-        $r = crudCall('get', ['fields' => ['users.name', 'users.password'], 'leftJoin' => ['users', 'users.id', 'produtos.id']]);
-
-        expect($r['error'])->toBeTrue()
-            ->and($r['http_code'])->toBe(400)
-            ->and(json_encode($r))->not->toContain('HASHDOADMIN');
+    it('get(id) inexistente: 404', function () {
+        expect(crudCall('get', ['id' => 999]))->toMatchArray(['error' => true, 'http_code' => 404]);
     });
 
-    it('ATAQUE: leftJoin sem fields é descartado (consulta só na própria tabela)', function () {
-        $r = crudCall('get', ['leftJoin' => ['users', 'users.id', 'produtos.id'], 'where' => [['id', '=', 1]]]);
+    it('get({filtro}) com paginação (per_page 2)', function () {
+        $r = crudCall('get', ['filters' => ['status' => 'on'], 'page' => 1]);
 
-        expect($r['error'])->toBeFalse()
-            ->and(array_keys($r['data'][0]))->not->toContain('name');
+        expect(ids($r))->toBe([4, 2])
+            ->and($r['page'])->toBe(1)
+            ->and($r['per_page'])->toBe(2)
+            ->and(ids(crudCall('get', ['filters' => ['status' => 'on'], 'page' => 2])))->toBe([1])
+            ->and(ids(crudCall('get', ['filters' => ['status' => ['off']]])))->toBe([5, 3]);
     });
 
-    it('ATAQUE: debug não devolve a query', function () {
-        $r = crudCall('get', ['debug' => true, 'where' => [['id', '=', 1]]]);
-
-        expect($r)->not->toHaveKey('string')
-            ->and(ids($r))->toBe([1]);
+    it('filtro não declarado: 400', function () {
+        expect(crudCall('get', ['filters' => ['nome' => 'Caneta']]))->toMatchArray(['error' => true, 'http_code' => 400]);
     });
 
-    it('ATAQUE: update em massa (where id > 0) é recusado e nada muda', function () {
-        $r = crudCall('update', ['fields' => ['status' => 'hackeado'], 'where' => [['id', '>', 0]]]);
+    it('create, update(id) e delete(id)', function () {
+        expect(crudCall('create', ['fields' => ['nome' => 'Cola', 'preco' => 4]])['error'])->toBeFalse()
+            ->and(count_rows("nome = 'Cola'"))->toBe(1);
 
-        expect($r['error'])->toBeTrue()
-            ->and(crudDatabase(false)->query("SELECT COUNT(*) FROM produtos WHERE status = 'hackeado'")->fetchColumn())->toBe(0);
+        $id = (int) crudDatabase(false)->query("SELECT id FROM produtos WHERE nome = 'Cola'")->fetchColumn();
+
+        expect(crudCall('update', ['id' => $id, 'fields' => ['preco' => 5]])['error'])->toBeFalse()
+            ->and(count_rows("id = $id AND preco = 5"))->toBe(1)
+            ->and(crudCall('delete', ['id' => $id])['error'])->toBeFalse()
+            ->and(count_rows())->toBe(5);
     });
 
-    it('ATAQUE: delete em massa é recusado', function () {
-        crudCall('delete', ['where' => [['id', '>', 0]]]);
+    it('update afeta só o registro do id', function () {
+        crudCall('update', ['id' => 1, 'fields' => ['status' => 'x']]);
 
-        expect((int) crudDatabase(false)->query('SELECT COUNT(*) FROM produtos')->fetchColumn())->toBe(5);
-    });
-
-    it('ATAQUE: gravar coluna oculta é recusado', function () {
-        $r = crudCall('update', ['fields' => ['password' => 'x'], 'where' => [['id', '=', 1]]]);
-
-        expect($r['error'])->toBeTrue()
-            ->and(crudDatabase(false)->query('SELECT password FROM produtos WHERE id = 1')->fetchColumn())->toBe('hash-produto-1');
-    });
-
-    it('create, update e delete legítimos funcionam', function () {
-        expect(crudCall('create', ['fields' => ['id' => 10, 'nome' => 'Cola', 'preco' => 4]])['error'])->toBeFalse()
-            ->and(crudCall('update', ['fields' => ['preco' => 5], 'where' => [['id', '=', 10]]])['error'])->toBeFalse()
-            ->and(crudDatabase(false)->query('SELECT preco FROM produtos WHERE id = 10')->fetchColumn())->toEqual(5)
-            ->and(crudCall('delete', ['where' => [['id', '=', 10]]])['error'])->toBeFalse()
-            ->and((int) crudDatabase(false)->query('SELECT COUNT(*) FROM produtos')->fetchColumn())->toBe(5);
+        expect(count_rows("status = 'x'"))->toBe(1);
     });
 });
 
-describe('proteção automática dos apps antigos', function () {
+describe('o cliente não monta queries', function () {
 
-    it('Model::get($request->data()) inalterado é saneado (o jeito que o template faz)', function () {
-        $request = clientRequest(['fields' => ['users.password'], 'leftJoin' => ['users', 'users.id', 'produtos.id']]);
+    it('ATAQUE: leftJoin para ler hashes de senha', function () {
+        $r = crudCall('get', ['fields' => ['users.password'], 'leftJoin' => ['users', 'users.id', 'produtos.id']]);
 
-        $r = Produto::get($request->data());
-
-        expect($r->error)->toBeTrue()
-            ->and($r->http_code)->toBe(400);
+        expect($r)->toMatchArray(['error' => true, 'http_code' => 400])
+            ->and(json_encode($r))->not->toContain('HASHDOADMIN');
     });
 
-    it('Model::update($request->data()) em massa é recusado', function () {
+    it('ATAQUE: where em massa no update e no delete', function () {
+        crudCall('update', ['fields' => ['status' => 'hackeado'], 'where' => [['id', '>', 0]]]);
+        crudCall('delete', ['where' => [['id', '>', 0]]]);
+
+        expect(count_rows("status = 'hackeado'"))->toBe(0)
+            ->and(count_rows())->toBe(5);
+    });
+
+    it('ATAQUE: debug, orderBy e limit', function () {
+        foreach ([['debug' => true], ['orderBy' => ['RAND()']], ['limit' => [100000]]] as $payload) {
+            expect(crudCall('get', $payload))->toMatchArray(['error' => true, 'http_code' => 400]);
+        }
+    });
+
+    it('ATAQUE: gravar coluna oculta ou trocar a chave primária', function () {
+        expect(crudCall('update', ['id' => 1, 'fields' => ['password' => 'x']])['error'])->toBeTrue()
+            ->and(crudCall('update', ['id' => 1, 'fields' => ['id' => 99]])['error'])->toBeTrue()
+            ->and(count_rows("id = 99"))->toBe(0);
+    });
+});
+
+describe('métodos sobrescritos e código do servidor', function () {
+
+    it('repassar o payload bruto ao Model é recusado (antigo X::update($request->data()))', function () {
         $request = clientRequest(['fields' => ['status' => 'x'], 'where' => [['id', '>', 0]]]);
 
-        expect(Produto::update($request->data())->error)->toBeTrue()
-            ->and(crudDatabase(false)->query("SELECT COUNT(*) FROM produtos WHERE status = 'x'")->fetchColumn())->toBe(0);
+        $r = Produto::update($request->data());
+
+        expect($r->error)->toBeTrue()
+            ->and($r->http_code)->toBe(400)
+            ->and($r->message)->toContain('fromClient')
+            ->and(count_rows("status = 'x'"))->toBe(0);
     });
 
-    it('Model::get($request->data()) remove colunas ocultas do resultado', function () {
-        $request = clientRequest(['where' => [['id', '=', 2]]]);
+    it('fromClient() usa o request atual por padrão', function () {
+        clientRequest(['id' => 3, 'fields' => ['nome' => 'Mochila 2']]);
 
-        expect(Produto::get($request->data())->data[0])->not->toHaveKey('password');
+        expect(Produto::fromClient('update')->error)->toBeFalse()
+            ->and(count_rows("nome = 'Mochila 2'"))->toBe(1);
     });
 
-    it('chamada do servidor (array montado no código) continua com acesso total, inclusive leftJoin', function () {
+    it('clientPayload() valida sem executar, para complementar no servidor', function () {
+        clientRequest(['fields' => ['nome' => 'Cola']]);
+
+        $payload = Produto::clientPayload('create');
+        $payload['fields']['status'] = 'revisar'; // valor do servidor
+
+        expect(Produto::create(['fields' => $payload['fields']])->error)->toBeFalse()
+            ->and(count_rows("nome = 'Cola' AND status = 'revisar'"))->toBe(1);
+    });
+
+    it('find/list/updateById/deleteById para o servidor', function () {
+        expect(Produto::find(1)->data['nome'])->toBe('Caneta')
+            ->and(Produto::find(999)->data)->toBeNull()
+            ->and(array_column(Produto::list(['status' => 'off'])->data, 'id'))->toBe([5, 3])
+            ->and(Produto::updateById(2, ['preco' => 20])->error)->toBeFalse()
+            ->and(count_rows('id = 2 AND preco = 20'))->toBe(1)
+            ->and(Produto::deleteById(5)->error)->toBeFalse()
+            ->and(count_rows())->toBe(4);
+    });
+
+    it('o servidor continua com o query builder completo, inclusive leftJoin', function () {
         clientRequest(['qualquer' => 'coisa']);
 
         $r = Produto::get([
@@ -118,23 +148,6 @@ describe('proteção automática dos apps antigos', function () {
             'where' => [['produtos.id', '=', 1]],
         ]);
 
-        expect($r->error)->toBeFalse()
-            ->and($r->data)->toBe([['id' => 1, 'name' => 'admin']]);
-    });
-
-    it('clientQuery() explícito, para quem altera o payload antes de gravar', function () {
-        $request = clientRequest(['fields' => ['nome' => 'Novo'], 'where' => [['id', '=', 3]]]);
-
-        $data = Produto::clientQuery($request->data(), 'update');
-        $data['fields']['status'] = 'revisado'; // valor do servidor
-
-        expect(Produto::update($data)->error)->toBeFalse()
-            ->and(crudDatabase(false)->query('SELECT nome || status FROM produtos WHERE id = 3')->fetchColumn())->toBe('Novorevisado');
-    });
-
-    it('fora de uma requisição (CLI, jobs) não há saneamento automático', function () {
-        RouterHttpRequest::setCurrent(null);
-
-        expect(Produto::get(['fields' => ['password'], 'where' => [['id', '=', 1]]])->data[0]['password'])->toBe('hash-produto-1');
+        expect($r->data)->toBe([['id' => 1, 'name' => 'admin']]);
     });
 });

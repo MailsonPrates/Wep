@@ -2,21 +2,23 @@
 
 namespace Wep;
 
-use Wep\Api\ClientQuery;
-use Wep\Api\ClientQueryException;
+use Wep\Api\ClientPayload;
+use Wep\Api\InvalidPayloadException;
 use Wep\Router\Http\RouterHttpRequest;
 
 /**
- * Model de um módulo: get/create/update/delete na tabela do config do módulo.
+ * Model de um módulo, ligado à tabela do config do módulo.
  *
- * Proteção do CRUD automático: quando o Model recebe exatamente o payload da requisição atual
- * ($request->data(), sem alterações), ele é tratado como vindo do cliente e passa pelo
- * ClientQuery (sem leftJoin/debug/raw, colunas só desta tabela, ocultas bloqueadas...).
- * Se o seu código altera o payload antes de repassar, sanitize explicitamente:
+ * Servidor (código PHP: acesso total ao query builder, inclusive o modo verbose):
+ *   Pedido::get([...]); Pedido::create([...]); Pedido::update([...]); Pedido::delete([...]);
+ *   Pedido::find($id); Pedido::list(['status' => 'on'], $page); Pedido::updateById($id, $campos); Pedido::deleteById($id);
  *
- *   $data = Pedido::clientQuery($request->data(), 'update');
- *   $data['fields']['updated_by'] = $userId;
- *   Pedido::update($data);
+ * Cliente (CRUD automático): o front não envia queries, só dados e id. Use fromClient(),
+ * que valida o payload pelo contrato de Wep\Api\ClientPayload e executa:
+ *   return $response->json(Pedido::fromClient('update'));
+ *
+ * Repassar o payload bruto do cliente para os métodos do servidor (ex.: Pedido::update($request->data()))
+ * é recusado com erro 400.
  */
 trait Model
 {
@@ -30,41 +32,153 @@ trait Model
     {
         self::getTable();
 
-        $isClient = is_array($props) && (
-            !empty($props[ClientQuery::MARKER]) || self::isRawRequestPayload($props)
-        );
-
-        if (!$isClient) {
-            return self::$table->{$method}($props);
+        if (is_array($props) && self::isRawRequestPayload($props)) {
+            return Response::error(
+                'O payload do cliente não pode ser repassado direto ao Model. Use ' . static::class . "::fromClient('$method').",
+                ['http_code' => 400]
+            );
         }
 
-        if (empty($props[ClientQuery::MARKER])) {
-            try {
-                $props = static::clientQuery($props, $method);
-            } catch (ClientQueryException $e) {
-                return Response::error($e->getMessage(), ['http_code' => 400]);
+        return self::$table->{$method}($props);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cliente (CRUD automático)
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Valida o payload do cliente e executa a operação.
+     *
+     * @param string $operation get|create|update|delete
+     * @param array|null $data padrão: $request->data() da requisição atual
+     *
+     * @return object Response (erro 400 quando o payload está fora do contrato)
+     */
+    public static function fromClient(string $operation, ?array $data = null)
+    {
+        try {
+            $payload = static::clientPayload($operation, $data);
+        } catch (InvalidPayloadException $e) {
+            return Response::error($e->getMessage(), ['http_code' => 400]);
+        }
+
+        $operation = strtolower($operation);
+        $hidden = self::options()['hidden'];
+
+        if ($operation === 'get' || $operation === 'select') {
+            if (isset($payload['id'])) {
+                $result = static::find($payload['id']);
+
+                if (empty($result->error) && $result->data === null) {
+                    return Response::error('Registro não encontrado', ['http_code' => 404]);
+                }
+
+                return ClientPayload::filterRows($result, $hidden);
             }
+
+            $result = static::list($payload['filters'], $payload['page'] ?? null, $payload['per_page'] ?? null);
+
+            return ClientPayload::filterRows($result, $hidden);
         }
 
-        unset($props[ClientQuery::MARKER]);
-
-        $result = self::$table->{$method}($props);
-
-        // SELECT * traz as colunas ocultas: remove do resultado (inclui sempre "password")
-        return $method === 'get'
-            ? ClientQuery::filterRows($result, ClientQuery::options(self::apiOptions())['hidden'])
-            : $result;
+        return match ($operation) {
+            'create', 'insert' => self::$table->create(['fields' => $payload['fields']]),
+            'update' => static::updateById($payload['id'], $payload['fields']),
+            'delete' => static::deleteById($payload['id']),
+        };
     }
 
     /**
-     * Saneia um payload vindo do cliente para esta tabela.
+     * Valida o payload do cliente sem executar (para quem precisa complementar os dados no servidor).
      *
-     * @param string $operation get|create|update|delete
-     * @throws ClientQueryException
+     * @return array{id?: string|int, fields?: array, filters?: array, page?: int, per_page?: int}
+     * @throws InvalidPayloadException
      */
-    public static function clientQuery(array $payload, string $operation): array
+    public static function clientPayload(string $operation, ?array $data = null): array
     {
-        return ClientQuery::sanitize($payload, $operation, self::apiOptions());
+        self::getTable();
+
+        if ($data === null) {
+            $request = RouterHttpRequest::current();
+            $data = $request ? $request->data() : [];
+        }
+
+        return ClientPayload::parse($data, $operation, self::$apiOptions);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Servidor
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Um registro pela chave primária. data = linha (array) ou null.
+     */
+    public static function find($id)
+    {
+        $result = self::getTable()->get([
+            'where' => [[self::options()['primary_key'], '=', $id]],
+            'limit' => 1,
+        ]);
+
+        if (empty($result->error)) {
+            $result->data = $result->data[0] ?? null;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Lista com filtros por igualdade (valor array vira IN), ordem e limite da config.
+     * Com $page, pagina com $perPage (padrão "per_page" da config) e devolve page/per_page.
+     */
+    public static function list(array $filters = [], ?int $page = null, ?int $perPage = null)
+    {
+        $options = self::options();
+        $query = [];
+
+        foreach ($filters as $column => $value) {
+            $query['where'][] = [$column, is_array($value) ? 'in' : '=', $value];
+        }
+
+        if ($options['order_by']) {
+            $query['orderBy'] = $options['order_by'];
+        }
+
+        if ($page !== null) {
+            $perPage = min($perPage ?? $options['per_page'], $options['max_limit']);
+            $query['limit'] = [$perPage];
+            $query['page'] = max(1, $page);
+        } else {
+            $query['limit'] = [$options['max_limit']];
+        }
+
+        $result = self::getTable()->get($query);
+
+        if ($page !== null && empty($result->error)) {
+            $result->page = $query['page'];
+            $result->per_page = $perPage;
+        }
+
+        return $result;
+    }
+
+    public static function updateById($id, array $fields)
+    {
+        return self::getTable()->update([
+            'fields' => $fields,
+            'where' => [[self::options()['primary_key'], '=', $id]],
+        ]);
+    }
+
+    public static function deleteById($id)
+    {
+        return self::getTable()->delete([
+            'where' => [[self::options()['primary_key'], '=', $id]],
+        ]);
     }
 
     public static function table()
@@ -73,15 +187,18 @@ trait Model
     }
 
     /**
-     * Opções do CRUD automático: config "api" do módulo e nome da tabela.
+     * Opções do CRUD automático: config "api" do módulo e nome da tabela (cru, sem normalizar).
      */
     public static function apiOptions(): array
     {
-        if (self::$apiOptions === null) {
-            self::getTable();
-        }
+        self::getTable();
 
         return self::$apiOptions;
+    }
+
+    private static function options(): array
+    {
+        return ClientPayload::options(self::apiOptions());
     }
 
     private static function getTable()

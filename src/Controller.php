@@ -2,7 +2,6 @@
 
 namespace Wep;
 
-use Wep\Api\ClientQueryException;
 use Wep\Foundation\ErrorHandler;
 use Wep\Router\Http\RouterHttpRequest;
 
@@ -41,9 +40,9 @@ trait Controller
     /**
      * CRUD automático (get/create/update/delete).
      *
-     * O payload do cliente passa pelo ClientQuery do Model antes de virar query: sem leftJoin,
-     * debug ou raw, colunas só da tabela do módulo, ocultas bloqueadas, update/delete por
-     * igualdade. Antes o $request->data() ia direto para o modo verbose do Model.
+     * O cliente não envia queries: só id, fields e filtros declarados no módulo
+     * (contrato em Wep\Api\ClientPayload). Antes o $request->data() ia direto para o
+     * modo verbose do Model.
      */
     protected function handleDefaultMethods($method, $request, $response, $module_class)
     {
@@ -56,17 +55,11 @@ trait Controller
                 return call_user_func_array([$this, $method], [$request, $response]);
             }
 
-            if ( !method_exists($module_class, 'clientQuery') ){
+            if ( !method_exists($module_class, 'fromClient') ){
                 return $response->json(Response::error("O módulo não expõe CRUD automático (Model ausente)"));
             }
 
-            $query = $module_class::clientQuery($request->data(), $method);
-            $result = $module_class::$method($query);
-
-            return $response->json($result);
-
-        } catch (ClientQueryException $e) {
-            return $response->json(Response::error($e->getMessage(), ['http_code' => 400]));
+            return $response->json($module_class::fromClient($method, $request->data()));
 
         } catch (\Throwable $e) {
             return $response->json(Response::error(self::publicErrorMessage($e)));
