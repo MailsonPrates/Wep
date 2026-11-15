@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Router\Http;
+namespace Wep\Router\Http;
 
 class Redirect {
     

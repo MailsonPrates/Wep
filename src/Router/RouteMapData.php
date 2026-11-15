@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
 /**
  * Objeto contendo os dados da rota
@@ -46,7 +46,7 @@ class RouteMapData
         if ( !$data ) return (object)[];
 
         $data = (object)$data;
-        $data->view = (object)($data->view ?: []);
+        $data->view = (object)(($data->view ?? null) ?: []);
 
         return $data;
     }

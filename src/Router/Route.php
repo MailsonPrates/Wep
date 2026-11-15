@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\Traits\RouteUtils;
-use App\Core\Router\RouteCollection;
+use Wep\Router\Traits\RouteUtils;
+use Wep\Router\RouteCollection;
 
 abstract class Route extends RouteCollection
 {
@@ -24,7 +24,7 @@ abstract class Route extends RouteCollection
      * 
      * @return void
      */
-    public static function start(String $projectUrl, String $separator = null): void
+    public static function start(String $projectUrl, ?String $separator = null): void
     {
         self::$projectUrl = rtrim($projectUrl, '/');
 
@@ -42,7 +42,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function get(String $uri, $callback)
     {
@@ -54,7 +54,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function options(String $uri, $callback)
     {
@@ -65,7 +65,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function post(String $uri, $callback)
     {
@@ -76,7 +76,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function put(String $uri, $callback)
     {
@@ -87,7 +87,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function patch(String $uri, $callback)
     {
@@ -98,7 +98,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array|string $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function delete(String $uri, $callback)
     {
@@ -109,7 +109,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function any(String $uri, $callback)
     {
@@ -121,7 +121,7 @@ abstract class Route extends RouteCollection
      * @param string $redirect
      * @param int $httpCode
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function redirect(String $uri, String $redirect, Int $httpCode = 302)
     {
@@ -132,7 +132,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param string $redirect
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function permanentRedirect(String $uri, String $redirect)
     {
@@ -143,7 +143,7 @@ abstract class Route extends RouteCollection
      * @param string $uri
      * @param \Closure|array $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public static function match(Array $methods, String $uri, $callback)
     {

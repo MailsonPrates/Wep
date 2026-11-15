@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Command;
+namespace Wep\Command;
 
 /**
  * @todo implementar metodos
@@ -30,6 +30,10 @@ class Console
                 "title" => "ALERTA",
                 "colors" => self::getColor('white', 'yellow')
             ],
+            "info" => [
+                "title" => "INFO",
+                "colors" => self::getColor('white', 'blue')
+            ],
             "custom" => [
                 "title" => "",
                 "colors" => self::getColor('black', 'light')
@@ -40,16 +44,63 @@ class Console
             $mode = $modes[$props] ?? null;
 
             if ( !$mode && str_contains($props, ":") ){
-                $parts = explode(":", $props);
-                $title = $parts[1];
+                $parts = explode(":", $props, 2);
                 $mode = $modes["custom"];
 
-                $mode["title"] = $title;
+                $mode["title"] = $parts[1];
             }
 
-            echo self::setModeResponse($mode, $message);
+            // modo desconhecido: só a mensagem (antes gerava warnings e uma linha quebrada)
+            if ( !$mode ){
+                echo $message . "\n";
+                return;
+            }
+
+            self::setModeResponse($mode, $message);
         }
 
+    }
+
+    /** @var resource|null entrada das perguntas (testes podem trocar) */
+    private static $input = null;
+
+    public static function setInput($stream): void
+    {
+        self::$input = $stream;
+    }
+
+    /**
+     * Pergunta no terminal e devolve a resposta (ou o padrão, se vazia).
+     */
+    public static function ask(string $question, string $default = ''): string
+    {
+        $suffix = $default !== '' ? " [$default]" : '';
+        echo $question . $suffix . ': ';
+
+        $line = fgets(self::$input ?? STDIN);
+        $answer = trim($line === false ? '' : $line);
+
+        return $answer !== '' ? $answer : $default;
+    }
+
+    /**
+     * Pergunta sem exibir o que é digitado (quando o terminal permite).
+     */
+    public static function secret(string $question): string
+    {
+        $canHide = self::$input === null && DIRECTORY_SEPARATOR === '/' && function_exists('shell_exec') && stream_isatty(STDIN);
+
+        if (!$canHide) {
+            return self::ask($question);
+        }
+
+        echo $question . ': ';
+        shell_exec('stty -echo');
+        $line = fgets(STDIN);
+        shell_exec('stty echo');
+        echo PHP_EOL;
+
+        return trim($line === false ? '' : $line);
     }
 
     private static function getColor($font="white", $bg=null)

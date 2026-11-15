@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Core\DB\Query\Methods;
+namespace Wep\DB\Query\Methods;
 
-use App\Core\Obj;
-use App\Core\DB\Query\Helpers;
-use App\Core\DB\Query\Builders\Condition;
-use App\Core\DB\Query\Methods\MethodInterface;
+use Wep\Obj;
+use Wep\DB\Query\Builders\Condition;
+use Wep\DB\Query\Builders\Identifier;
+use Wep\DB\Query\Builders\Placeholders;
+use Wep\DB\Query\Methods\MethodInterface;
+use InvalidArgumentException;
 
 /**
  * Monta query string select
  */
 class Select implements MethodInterface
 {
-
-    use Helpers;
 
     /**
      * @var array
@@ -53,137 +53,118 @@ class Select implements MethodInterface
     }
 
     /**
-     * 
+     * @throws InvalidArgumentException
      */
     public function build(array $fields=[])
     {
-        $has_args = count($fields) > 0;
-        
+        $bag = new Placeholders();
+
         /**
          * FIELDS
          */
-        $fields_list = $has_args
-            ? [join(", ", preg_filter('/^/', "", $fields))]
-            : ["*"];
+        $columns = empty($fields)
+            ? "*"
+            : implode(", ", array_map([Identifier::class, "select"], array_values($fields)));
 
         // Inicia montagem da query
-        $query = ["SELECT ".join(", ", $fields_list). " FROM `".$this->table . "`"];
+        $query = ["SELECT " . $columns . " FROM " . Identifier::table($this->table)];
 
         $response = Obj::set([
             "filters" => $this->filters, 
             "conditions" => $this->conditions,
             "joins" => $this->joins,
-            "fields_list" => $fields_list,
+            "fields_list" => [$columns],
             "placeholders" => []
         ]);
-       
 
         /**
          * JOINS
          */
+        foreach( $this->joins ?? [] as $join ){
 
-        $joins = $this->joins ?? [];
-        $has_joins = !empty($joins);
+            $on_query = [];
 
-        if ( $has_joins ){
-
-            $joins_query = [];
-
-            foreach( $joins as $join ){
-
-                $table = $join["table"];
-                $on_conditions = $join["on"];
-
-                $on_query = [];
-
-                foreach( $on_conditions as $on ){
-                    $on_query[] = $on["source"] . " = " .$on["target"]; 
-                }
-
-                $has_multiple_ons = count($on_query) > 1;
-
-                $on_query_string = " ON ";
-                $on_query_string .= $has_multiple_ons ? "(" : "";
-                $on_query_string .= join(" AND ", $on_query);
-                $on_query_string .= $has_multiple_ons ? ")" : "";
-
-                $joins_query[] = "LEFT JOIN ".$table . $on_query_string;
+            foreach( $join["on"] as $on ){
+                $on_query[] = Identifier::quote($on["source"]) . " = " . Identifier::quote($on["target"]);
             }
 
-            $query_string = join(" ", $joins_query);
+            $on_query_string = count($on_query) > 1
+                ? "(" . implode(" AND ", $on_query) . ")"
+                : $on_query[0];
 
-            $query[] = $query_string;
-
+            $query[] = "LEFT JOIN " . Identifier::table($join["table"]) . " ON " . $on_query_string;
         }
 
         /**
          * CONDITIONS
          */
-        $has_conditions = !empty($this->conditions);
+        if ( !empty($this->conditions) ){
+            $conditions_query = Condition::buildQuery($this->conditions, $bag);
 
-        if ( $has_conditions ){
-            $conditions_query = Condition::buildQuery($this->conditions);
-
-            $response->placeholders = array_merge($response->placeholders, $conditions_query->placeholders ?? []);
             $response->conditions_query = $conditions_query;
-
-            if ( $has_joins ){
-                //$query[] = "AND";
-            }
 
             $query[] = $conditions_query->string;
         }
 
-
         /**
          * FILTERS
          */
-        $has_filters = !empty($this->filters);
-
-        if ( $has_filters ){
+        if ( !empty($this->filters) ){
 
             // Order By
-
             $orderBy = $this->filters["orderBy"] ?? [];
 
             if ( !empty($orderBy) ){
 
-                $cols = join(", ", $orderBy["cols"]);
-                $order = $orderBy["order"] ?? "ASC";
+                $order = strtoupper($orderBy["order"] ?? "ASC");
+
+                if ( !in_array($order, ["ASC", "DESC"], true) ){
+                    throw new InvalidArgumentException("Invalid order direction");
+                }
+
+                $cols = implode(", ", array_map([Identifier::class, "order"], $orderBy["cols"]));
 
                 $query[] = "ORDER BY $cols $order";
             }
 
-            // Page
-            $page = $this->filters["page"] ?? null;
-
-            // Limit
+            // Limit (+ Page)
             $limit = $this->filters["limit"] ?? [];
 
             if ( !empty($limit) ){
 
-                if ( !is_null($page) ){
-                    $page_limit = $limit[0] ?? 10;
-                    $page_number = (int) $page;
-                    $limit_start = ($page_number * $page_limit) - $page_limit;
-                    $limit_end = $page_limit;
+                $limit = array_values($limit);
 
-                    $limit = [$limit_start, $limit_end];
+                // o LIMIT não aceita bind em modo emulado: força inteiros >= 0
+                if ( count($limit) > 2 ){
+                    throw new InvalidArgumentException("Invalid limit");
                 }
 
-                $query[] = "LIMIT ".join(", ", $limit);
+                foreach( $limit as $n ){
+                    if ( !is_numeric($n) || (int) $n != $n || $n < 0 ){
+                        throw new InvalidArgumentException("Invalid limit");
+                    }
+                }
+
+                $limit = array_map("intval", $limit);
+                $page = $this->filters["page"] ?? null;
+
+                if ( !is_null($page) ){
+                    $per_page = $limit[0];
+                    $page_number = max(1, (int) $page);
+
+                    $limit = [($page_number - 1) * $per_page, $per_page];
+                }
+
+                $query[] = "LIMIT " . implode(", ", $limit);
             }
 
         }
 
-
         /**
          * FINALIZA QUERY
          */
-
-        $query = join(" ", $query);
-
-        $response->string = $query;
+        $response->placeholders = $bag->all();
+        $response->string = implode(" ", $query);
 
         return $response;
     }

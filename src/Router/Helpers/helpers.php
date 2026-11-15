@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\Router\Helpers\Functions;
+use Wep\Router\Helpers\Functions;
 
 if (! function_exists('router')) {
     /**

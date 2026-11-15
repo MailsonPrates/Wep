@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Engine;
+namespace Wep\Engine;
 
 class Module
 {
@@ -73,7 +73,8 @@ class Module
             $files = [];
             $dir = DIR_MODULES . ($is_vendor_filter ? '/Vendor' : '');
 
-            //echo "dir: ". $dir . PHP_EOL;
+            // app sem a pasta (ex.: sem módulos vendor): antes o iterator lançava exceção
+            if ( !is_dir($dir) ) return [];
 
             $iterator = new \RecursiveIteratorIterator(
                 new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS)

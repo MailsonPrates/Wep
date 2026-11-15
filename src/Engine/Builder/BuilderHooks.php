@@ -1,162 +1,189 @@
 <?php
 
-namespace App\Core\Engine\Builder;
+namespace Wep\Engine\Builder;
 
-use App\App;
-use App\Core\Cache;
-use App\Core\Engine\Module;
+use Wep\Cache;
+use Wep\Core;
+use Wep\Engine\Module;
+use Wep\Foundation\ErrorHandler;
 
+/**
+ * Hooks do build (`php app update`): before_build, each_route e after_build.
+ *
+ * - Hooks do app (config/app.php) rodam antes dos hooks dos módulos, em todos os eventos.
+ * - each_route: todos os hooks rodam em cadeia; cada um recebe a rota devolvida pelo anterior.
+ *   (Antes só o primeiro rodava: um hook do app impedia o AddRoleToRoutes do módulo UserGroup e
+ *   as rotas ficavam sem permissão.)
+ * - Um hook que falha vira aviso e o build continua. Com --strict (setStrict) a falha aborta.
+ */
 class BuilderHooks
 {
- 
+    private static bool $strict = false;
+
+    /** @var string[] */
+    private static array $warnings = [];
+
+    /** @var array|null hooks resolvidos (em memória durante o build) */
+    private static ?array $hooks = null;
+
     public static function beforeBuild()
     {
-        $hooks = self::getHooks();
-        $event_hooks = $hooks['before_build'] ?? [];
-
-        if ( empty($event_hooks) ) return;
-
-        self::execute($event_hooks);
+        self::run('before_build');
     }
 
     public static function eachRoute($route, $data)
     {
-        $hooks = self::getHooks();
-        $event_hooks = $hooks['each_route'] ?? [];
+        foreach( self::getHooks()['each_route'] ?? [] as $hook ){
 
-        if ( empty($event_hooks) ) return $route;
+            $result = self::call($hook, 'each_route', [$route, $data]);
 
-        //echo json_encode($event_hooks) . PHP_EOL;
-        //echo '-----------------' . PHP_EOL;
-
-        self::execute($event_hooks, function($executor) use (&$route, $data){
-            $result = $executor($route, $data);
-            $route = $result ?: $route;
-        });
+            // hook que não devolve rota (null/false) mantém a rota como estava
+            if ( is_array($result) ) $route = $result;
+        }
 
         return $route;
     }
 
     public static function afterBuild()
     {
-        $hooks = self::getHooks();
-        $event_hooks = $hooks['after_build'] ?? [];
-
-        if ( empty($event_hooks) ) return;
-
-        self::execute($event_hooks);
+        self::run('after_build');
     }
 
     public static function reset()
     {
         Cache::delete('regular_module_hooks');
+        self::$warnings = [];
+        self::$hooks = null;
+    }
+
+    public static function setStrict(bool $strict): void
+    {
+        self::$strict = $strict;
+    }
+
+    /**
+     * Avisos acumulados no build (hooks inexistentes ou que falharam).
+     *
+     * @return string[]
+     */
+    public static function warnings(): array
+    {
+        return self::$warnings;
+    }
+
+    private static function run(string $event): void
+    {
+        foreach( self::getHooks()[$event] ?? [] as $hook ){
+            self::call($hook, $event, []);
+        }
+    }
+
+    /**
+     * Executa um hook. Falhas viram aviso (ou exceção em modo estrito).
+     */
+    private static function call(array $hook, string $event, array $arguments)
+    {
+        [$class, $method] = self::resolve($hook);
+
+        if ( !method_exists($class, $method) ){
+            // antes era ignorado em silêncio (ex.: erro de digitação no nome do hook)
+            return self::fail("Hook $event '{$hook['executor']}' não encontrado ($class::$method)");
+        }
+
+        try {
+            return (new $class)->{$method}(...$arguments);
+        } catch (\Throwable $e) {
+            ErrorHandler::report($e);
+            return self::fail("Hook $event '{$hook['executor']}' falhou: " . $e->getMessage(), $e);
+        }
+    }
+
+    private static function fail(string $message, ?\Throwable $previous = null)
+    {
+        if ( self::$strict ){
+            throw new \RuntimeException($message, 0, $previous);
+        }
+
+        self::$warnings[] = $message;
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: string} [classe, método]
+     */
+    private static function resolve(array $hook): array
+    {
+        $executor = (string) $hook['executor'];
+
+        if ( str_contains($executor, "\\") ){
+            $parts = explode("@", $executor);
+            return [ltrim($parts[0], "\\"), $parts[1] ?? 'handle'];
+        }
+
+        return [$hook['namespace'] . "\\Hooks\\" . $executor, 'handle'];
     }
 
     private static function getHooks()
     {
+        if ( self::$hooks !== null ) return self::$hooks;
+
         $hooks = Cache::get('regular_module_hooks') ?: [];
 
         if ( empty($hooks) ){
 
             $app_hooks = self::getAppHooks();
-            $hooks = self::getModuleHooks();
+            $module_hooks = self::getModuleHooks();
 
-            // Faz merge do App hooks com modulo hooks
-            foreach($hooks as $event => $executors){
-                $app_executors = $app_hooks[$event] ?? [];
-                $hooks[$event] = array_merge($app_executors, $executors);
+            // todos os eventos (antes eventos só do app, como before_build, eram descartados)
+            foreach( array_unique(array_merge(array_keys($app_hooks), array_keys($module_hooks))) as $event ){
+                $hooks[$event] = array_merge($app_hooks[$event] ?? [], $module_hooks[$event] ?? []);
             }
 
             Cache::set('regular_module_hooks', $hooks);
         }
 
-        return $hooks;
+        return self::$hooks = $hooks;
     }
 
     private static function getAppHooks()
     {
-        $app_hooks = App::config('hooks') ?? [];
+        return self::normalize(Core::config('hooks') ?? [], 'App\\Common', null);
+    }
+
+    private static function getModuleHooks()
+    {
         $hooks = [];
-        
-        foreach($app_hooks as $event => $executor){
-                
-            if ( empty($executor) ) continue;
 
-            $executor_list = is_string($executor) ? [$executor] : $executor;
+        foreach( Module::getConfigs('regular') as $module ){
 
-            if ( !isset($hooks[$event]) ){
-                $hooks[$event] = [];
+            if ( ($module['active'] ?? true) === false ) continue;
+
+            foreach( self::normalize($module['hooks'] ?? [], $module['namespace'], $module['module_name']) as $event => $items ){
+                $hooks[$event] = array_merge($hooks[$event] ?? [], $items);
             }
+        }
 
-            foreach($executor_list as $execItem){
+        return $hooks;
+    }
+
+    private static function normalize($config, string $namespace, ?string $moduleName): array
+    {
+        $hooks = [];
+
+        foreach( (array) $config as $event => $executors ){
+
+            if ( empty($executors) ) continue;
+
+            foreach( (array) $executors as $executor ){
                 $hooks[$event][] = [
-                    'namespace' => 'App\\Common',
-                    'module_name' => null,
-                    'executor' => $execItem
+                    'namespace' => $namespace,
+                    'module_name' => $moduleName,
+                    'executor' => $executor
                 ];
             }
         }
 
         return $hooks;
     }
-
-    private static function getModuleHooks()
-    {
-        $module_configs = Module::getConfigs('regular');
-        $hooks = [];
-
-        foreach($module_configs as $module){
-            $module_hooks = $module['hooks'] ?? [];
-
-            if ( empty($module_hooks) ) continue;
-
-            foreach($module_hooks as $event => $executor){
-                
-                if ( empty($executor) ) continue;
-
-                $executor_list = is_string($executor) ? [$executor] : $executor;
-
-                if ( !isset($hooks[$event]) ){
-                    $hooks[$event] = [];
-                }
-
-                foreach($executor_list as $execItem){
-                    $hooks[$event][] = [
-                        'namespace' => $module['namespace'],
-                        'module_name' => $module['module_name'],
-                        'executor' => $execItem
-                    ];
-                }
-            }
-        }
-
-        return $hooks;
-    }
-
-    private static function execute($eventHooks, $callback=null)
-    {
-        foreach($eventHooks as $hook){
-            
-            $executor = $hook['executor'];
-            $is_full_namespace = str_contains($executor, "\\");
-            $namespace = $hook['namespace'] . "\\Hooks\\" . $executor;
-            $method = "handle";
-
-            if ( $is_full_namespace ){
-                $executor_parts = explode("@", $executor);
-                $namespace = $executor_parts[0];
-                $method = $executor_parts[1] ?? $method;
-            }
-
-            if ( !method_exists($namespace, $method) ) continue;
-
-            $executorClass = new $namespace;
-            $class_method = [$executorClass, $method];
-
-            if ( $callback && is_callable($callback)) return $callback($class_method);
-
-            $executorClass->$method();
-        }
-    }
-
 }

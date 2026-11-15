@@ -1,15 +1,30 @@
 <?php
 
-namespace App\Core\View\Template;
+namespace Wep\View\Template;
 
-use App\Core\View\Template\HtmlElements;
+use Wep\Http\Csp;
 
 /**
- * Class responsável por montar um html
+ * Monta um documento HTML.
+ *
+ * Escape:
+ * - valores de atributo são SEMPRE escapados (antes iam crus: um ' injetava atributos);
+ * - o <title> é escapado;
+ * - o conteúdo dos elementos (get('div', $conteudo) e 'html' => ...) é HTML: é assim que os
+ *   elementos aninhados são montados. Para texto vindo de usuário/banco use Html::text() ou
+ *   Html::escape(); para dados num <script>, Html::json().
+ *
+ * Com a CSP ligada (Wep\Http\Csp), todo <script> recebe o nonce da requisição.
  */
 class Html
 {
     use HtmlElements;
+
+    private const VOID = [
+        "area", "base", "br", "col", "command", "embed", "hr",
+        "img", "input", "keygen", "link", "meta", "param",
+        "source", "track", "wbr"
+    ];
 
     /**
      * @var object
@@ -21,7 +36,6 @@ class Html
      */
     private $elements = [];
 
-
     /**
      * @var array
      */
@@ -31,7 +45,6 @@ class Html
      * @var array
      */
     private $body = [];
-
 
     /**
      * @param array $config
@@ -51,67 +64,119 @@ class Html
         $this->setDefaults();
     }
 
-
     /**
-     * @param string $tag - any html element,
-     * @param string|array|null $props -html element props
-     * 
-     * @return string element html
+     * Monta um elemento.
+     *
+     * @param string $tag qualquer elemento html
+     * @param string|array|null $props conteúdo (HTML) ou atributos; a chave 'html' é o conteúdo (HTML)
+     *
+     * @return string elemento html
+     *
+     * @example
+     * Html::get('div', ['class' => 'x', 'html' => Html::get('span', 'ok')]);   // <div class="x"><span>ok</span></div>
+     * Html::get('input', ['type' => 'checkbox', 'checked' => true]);           // <input type="checkbox" checked>
      */
     public static function get($tag="", $props=[])
     {
-        $voidElements = [
-            "area", "base", "br", "col", "command", "embed", "hr", 
-            "img", "input", "keygen", "link", "meta", "param", 
-            "source", "track", "wbr"
-        ];
+        $tag = strtolower(trim(str_replace(["<", ">"], "", (string) $tag)));
 
-        $tag = str_replace(["<", ">"], "", $tag);
-        $is_void_element = in_array($tag, $voidElements);
-        $tag_open = "<$tag>";
-        $tag_close = $is_void_element ? "" : "</$tag>";
-
-        $props_type = gettype($props);
-
-        if ( $props_type == "string" || $props_type == "null" ) return join("", [$tag_open, $props, $tag_close]);
-
-        $props_list = [];
-        $skip_props = ["html"];
-        $content = $props["html"] ?? "";
-
-        foreach( $props as $key=>$value ){
-
-            $is_skip_props = in_array($key, $skip_props);
-
-            if ( $is_skip_props ) continue;
-
-            $props_list[] = "$key='$value'";
+        if ( !preg_match('/^[a-z][a-z0-9-]*$/', $tag) ){
+            throw new \InvalidArgumentException("Tag HTML inválida: $tag");
         }
 
-        return join("", [
-            "<$tag ",
-            join(" ", $props_list),
-            ">",
-            $content,
-            $tag_close
-        ]);
+        $is_void_element = in_array($tag, self::VOID, true);
+        $tag_close = $is_void_element ? "" : "</$tag>";
+
+        if ( !is_array($props) ){
+            $props = ['html' => (string) ($props ?? '')];
+        }
+
+        $content = (string) ($props["html"] ?? "");
+        unset($props["html"]);
+
+        if ( $tag === 'script' && Csp::isActive() && !isset($props['nonce']) ){
+            $props['nonce'] = Csp::nonce();
+        }
+
+        return "<$tag" . self::attributes($props) . ">" . ($is_void_element ? "" : $content) . $tag_close;
     }
-    
-    
+
+    /**
+     * Elemento com conteúdo de TEXTO (escapado).
+     *
+     * @example Html::text('p', $usuario['nome'], ['class' => 'nome']);
+     */
+    public static function text($tag, $text, array $attributes = []): string
+    {
+        return self::get($tag, $attributes + ['html' => self::escape($text)]);
+    }
+
+    /**
+     * Escapa texto para HTML (conteúdo ou atributo).
+     */
+    public static function escape($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * JSON seguro para usar dentro de <script>: <, >, &, ' e " viram < etc., então o valor
+     * não consegue fechar o script (</script>) nem abrir comentário (<!--).
+     *
+     * @example Html::get('script', ['html' => 'window.App = ' . Html::json($dados)]);
+     */
+    public static function json($data): string
+    {
+        return json_encode(
+            $data,
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR
+        ) ?: 'null';
+    }
+
     /**
      * @param string $target head|body
      * @param array $elements
      */
     public function append(string $target="", array $elements=[])
     {
-        $target_element_exist = isset($this->{$target});
-
-        if ( !$target_element_exist ){
-            self::get("strong", "[Error] Target element $target not found!");
-        };
+        if ( !in_array($target, ['head', 'body'], true) ){
+            throw new \InvalidArgumentException("Html::append: o alvo deve ser head ou body ($target)");
+        }
 
         $this->{$target} = array_merge($this->{$target}, $elements);
         return $this;
+    }
+
+    /**
+     * Atributos escapados. true vira atributo booleano, false/null é omitido, array vira JSON.
+     */
+    private static function attributes(array $props): string
+    {
+        $attributes = '';
+
+        foreach( $props as $name => $value ){
+
+            $name = (string) $name;
+
+            if ( !preg_match('/^[A-Za-z_:@][A-Za-z0-9_:.@-]*$/', $name) ){
+                throw new \InvalidArgumentException("Atributo HTML inválido: $name");
+            }
+
+            if ( $value === false || $value === null ) continue;
+
+            if ( $value === true ){
+                $attributes .= " $name";
+                continue;
+            }
+
+            if ( is_array($value) || is_object($value) ){
+                $value = json_encode($value);
+            }
+
+            $attributes .= " $name=\"" . self::escape($value) . "\"";
+        }
+
+        return $attributes;
     }
 
     private function set($content="")
@@ -124,7 +189,7 @@ class Html
         $config = $this->config;
 
         $this->append("head", [
-            self::get("title", $config->title ?? "Página sem título"),
+            self::text("title", $config->title ?? "Página sem título"),
             self::get("meta", [
                 "name" => "viewport",
                 "content" => $config->viewport ?? "width=device-width, initial-scale=1.0, maximum-scale=1.0"
@@ -160,22 +225,16 @@ class Html
 
     /**
      * @param string $target head|body
-     * @param array $targetElements
+     * @param array $targetElements [[tag, props], ...]
      */
     private function appendDefaults($target, $targetElements=[])
     {
-        $is_empty = count($targetElements) == 0;
-        
-        if ( $is_empty ) return;
+        if ( empty($targetElements) ) return;
 
         $elements = [];
 
-        foreach( $targetElements as $index=>$item ){
-            $element_item = $targetElements[$index];
-            $tag = $element_item[0];
-            $props = $element_item[1];
-
-            $elements[] = self::get($tag, $props);
+        foreach( $targetElements as $item ){
+            $elements[] = self::get($item[0], $item[1] ?? []);
         }
 
         $this->append($target, $elements);
@@ -183,18 +242,15 @@ class Html
 
     private function getHead()
     {
-        $head = join("", $this->head);
-        return self::get("head", $head);
+        return self::get("head", join("", $this->head));
     }
 
     private function getBody()
     {
-        $body = join("", $this->body);
-
         return self::get("body", array_merge(
             ($this->config->bodyProps ?? []),
             [
-                "html" => $body
+                "html" => join("", $this->body)
             ]
         ));
     }
@@ -203,14 +259,10 @@ class Html
     {
         $this->set('<!DOCTYPE html>');
 
-        $head = $this->getHead();
-        $body = $this->getBody();
-        $content = join("", [$head, $body]);
-
         $html = self::get("html", array_merge(
             ($this->config->htmlProps ?? []),
             [
-                "html" => $content
+                "html" => $this->getHead() . $this->getBody()
             ]
         ));
 

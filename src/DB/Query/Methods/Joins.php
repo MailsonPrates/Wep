@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query\Methods;
+namespace Wep\DB\Query\Methods;
 
 trait Joins
 {
@@ -55,9 +55,9 @@ trait Joins
 
             if ( $is_multiples_conditions ){
 
-                // retira o nome da tabela e usa o resto como
-                // condição on
-                $conditions = array_slice($join, 1);
+                // usa o resto como condição on. No formato posicional o primeiro item
+                // é o nome da tabela; no associativo ("order" => [[...], [...]]) não.
+                $conditions = array_slice($join, $is_associative ? 0 : 1);
 
                 foreach( $conditions as $on ){
 
@@ -88,11 +88,19 @@ trait Joins
         return $this;
     }
 
+    /**
+     * Prefixa o campo com a tabela (ou o alias dela, em "order o") quando
+     * não vier qualificado.
+     */
     private static function getSourceField($table, $field)
     {
-        return str_contains($field, ".")
-            ? $field
-            : $table . '.' . $field; 
+        if ( !is_string($table) || !is_string($field) || str_contains($field, ".") ){
+            return $field;
+        }
+
+        $parts = preg_split('/\s+/', trim($table));
+
+        return end($parts) . '.' . $field;
     }
 
 }

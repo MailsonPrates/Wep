@@ -1,0 +1,592 @@
+# Changelog
+
+Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
+seção **Mudanças de comportamento** de cada entrada.
+
+## [2.0.0] - 2026-11-15
+
+Refatoração de segurança, performance e estrutura. As quebras de compatibilidade foram feitas só onde
+havia risco. Cada seção abaixo traz as suas em **Mudanças de comportamento**.
+
+### Atualizando da 1.x
+
+**Obrigatório: o que pode quebrar o app**
+
+1. **CRUD automático: o front não monta mais queries** (Módulo 3). `where`, `fields`, `leftJoin`,
+   `orderBy` etc. vindos do cliente respondem 400. O front usa `get()`, `get(id)`, `get({filtro})`,
+   `create(campos)`, `update(id, campos)` e `delete(id)`. Os filtros aceitos ficam declarados no módulo
+   (`'api' => ['filters' => [...]]`), e `Model::fromClient()` monta a query no servidor.
+2. **Módulos vendor só viram rota com `'expose' => true`** e middlewares (Módulo 7).
+3. **Expressões SQL em campos/where/order exigem `DB::raw()`.** Multi-statements vêm desligados (DB).
+4. **Sessão expira após 2 h sem atividade** (`'idle_timeout' => 0` desliga). Instalação passa a ser por
+   CLI: `php app install` (Módulo 4).
+5. **Precedência de rotas:** a estática exata vence; entre dinâmicas, a primeira registrada (Módulo 2).
+   O CSRF (Origin/Sec-Fetch-Site) e os headers de segurança vêm ligados.
+6. **Upload só aceita imagens de verdade** (o tipo vem do conteúdo), e o cache gravado sem validade
+   expira em 1 h (Módulo 8).
+7. `Html`: atributos são escapados, mas o conteúdo continua sendo HTML. Texto de usuário vai por
+   `Html::text()`/`Html::escape()` (Módulo 5).
+
+**Recomendado**
+
+- Troque `App\Core\` por `Wep\` (o alias continua funcionando) e remova o mapeamento manual
+  `"App\\Core\\": "vendor/wep/framework/src/"` do `composer.json` do app.
+- Rode `php app update` depois de atualizar: os arquivos de build mudaram de formato.
+- Apps criados pelo template: compare com o `wep/project` 2.0.0, que traz o login com limite de tentativas,
+  os middlewares que respondem 401/403, o upload validado e o front que compila (`request.js`,
+  `webpack.config.js`).
+
+### Namespace (Módulo 1)
+
+- O namespace do Core passou de `App\Core\` para **`Wep\`** (por exemplo, `Wep\DB`, `Wep\Router\Route`
+  e `Wep\Http\iMiddleware`). Assim ele não colide mais com o `App\` das aplicações.
+- **Compatível:** `src/compat.php` cria sob demanda o alias `App\Core\X` → `Wep\X`. `use App\Core\Model`,
+  `implements App\Core\Http\iMiddleware` e os `route-maps.build.php` já gerados continuam funcionando.
+  O alias está marcado como deprecated e será removido numa versão maior futura (não na 2.0).
+- O mapeamento manual `"App\\Core\\": "vendor/wep/framework/src/"` no `composer.json` das aplicações
+  deixa de ser necessário e pode ser removido. Mantê-lo também funciona, porque o loader de compatibilidade
+  roda antes do Composer.
+- Código gerado (`php app update` e `php app create module`) passa a usar `Wep\`.
+
+### Cache, arquivos e upload (Módulo 8)
+
+#### Segurança
+
+- **Upload: execução de código.** `File::upload` validava a extensão pelo *último* ponto do nome e salvava
+  com o *primeiro*: `foto.php.jpg` virava um `.php` em `public/assets/images`, uma pasta servida
+  direto. O tipo MIME vinha do navegador (`$file['type']`), então não protegia nada. Novo **`Wep\Upload`**:
+  - o tipo vem do **conteúdo** (`getimagesize` + `fileinfo`) e define a extensão salva. O nome e o `type`
+    enviados pelo cliente são ignorados;
+  - `directory` só aceita subpastas de `assets/images` (`..` e caracteres estranhos dão exceção);
+  - o tamanho é o real do arquivo, nomes usam `random_bytes`, e a falha ao mover vira exceção (antes o
+    caminho era devolvido mesmo sem o arquivo salvo);
+  - imagens que declaram mais de `Upload::$max_pixels` (40 MP) são recusadas: um PNG pequeno de
+    20000×20000 estouraria a memória ao gerar miniaturas. Com o GD instalado, a imagem também precisa
+    decodificar (cabeçalho válido com o resto corrompido era aceito e quebrava depois).
+  - `File::upload()` continua existindo e chama `Upload::image()`. Mesmo retorno (caminho completo);
+    `Upload::relative()` dá o caminho relativo a `assets/images`.
+- **Cache: a chave virava padrão do `glob`.** `Cache::get('senha_*')` lia a chave de outra pessoa,
+  `delete('*')` apagava tudo, e `a/b` colidia com `b`. Agora o arquivo é `cache.<sha1 da chave>.json`.
+- Pastas criadas com `0775` (antes `0777`: qualquer usuário do servidor podia gravar).
+
+#### Bugs corrigidos
+
+- **Cache nunca expirava:** `get()` não conferia a validade. Agora confere (a validade fica dentro do arquivo).
+- Escrita do cache e de `File::write()` **atômica** (temporário + `rename`, via `File::putAtomic()`, usado
+  também pelo build). Antes, quem lia durante a escrita pegava o arquivo vazio ou pela metade.
+- `Cache::set` sem a pasta `storage/cache` dava `TypeError`; agora cria a pasta.
+- `File::isEmpty()` devolvia `0` (vazio) ou `false` (com conteúdo), os dois "falsos". Agora devolve
+  `bool`: `true` se não existe ou está vazio.
+- `new File($path)` criava o arquivo e as pastas só para ler; `write($array)` sem o 2º parâmetro dava
+  `TypeError` (agora arrays e objetos viram JSON).
+- `File::deleteAll()` não apagava arquivos ocultos, e o `rmdir` da pasta falhava.
+- `Console::log()` com modo desconhecido gerava warnings; novo modo `info`.
+
+#### Novidades
+
+- `Cache::has()`, `Cache::flush()`, `Cache::get($key, $default)`.
+- `File::putAtomic()`, `File::ensureDir()`.
+- O `php app update` remove o cache expirado e os arquivos no formato antigo.
+
+#### Mudanças de comportamento
+
+1. Cache gravado **sem validade explícita** (`Cache::set($k, $v)`) passa a expirar de fato após
+   `Cache::$expire` (1 h). Use `false` para não expirar.
+2. O cache antigo (`cache.<chave>.<validade>`) não é mais lido: é recriado na primeira gravação.
+3. `Upload`/`File::upload` recusam arquivos cujo conteúdo não é JPEG, PNG, GIF ou WebP, mesmo com a
+   extensão certa. A extensão salva é a do conteúdo (um PNG enviado como `.jpg` é salvo como `.png`).
+4. `File::isEmpty()` devolve `true` para arquivo inexistente.
+
+### Cliente HTTP e módulos vendor (Módulo 7)
+
+#### Segurança
+
+- **Módulos vendor não viram mais rotas HTTP por padrão.** Antes, todo endpoint de `src/Modules/Vendor/*`
+  ganhava uma rota pública (`/vendor/<modulo>/api/<recurso>/<metodo>/`). Qualquer visitante anônimo podia
+  usar o app como proxy para a API externa, com os headers e as chaves do `.env` (`{{ env.X }}`) que o
+  módulo injeta. Agora a rota só existe com `'expose' => true` na config do módulo, e usa os middlewares de
+  `routes.use_middlewares` (ex.: `['isLogged', 'checkPermission']`). Um módulo exposto sem middlewares gera
+  ALERTA no `php app update`. O uso pelo PHP (`Modulo::resource('x')->metodo()`) não muda.
+- **SSL:** `disableSSL()` deixava a verificação **ligada** e `'ssl' => false` chamava `disableCookies()`.
+  Os dois agora desligam a verificação, mas **só em DEV** (ex.: certificado autoassinado local). Fora de DEV,
+  a chamada é ignorada e registrada no log como WARNING, para que um `disableSSL()` esquecido não exponha
+  credenciais em produção. `CURLOPT_SSL_VERIFYHOST` acompanha a verificação do certificado.
+- Só `http`/`https`, também nos redirects. `file://`, `gopher://` etc. são recusados pelo cURL.
+- Headers dos módulos vendor: nomes inválidos são limpos, e `\r`, `\n` e `\0` são removidos dos valores. Uma
+  variável do `.env` com quebra de linha criava headers extras.
+
+#### Bugs corrigidos
+
+- `HttpRequest::get()/post()/...` (atalhos estáticos) davam fatal: a classe `Request` não existia.
+- `{{ algo }}` sem o prefixo `env.` na URL ou nos headers entrava em recursão infinita e derrubava o PHP.
+  Agora só `{{ env.NOME }}` é trocado; os outros ficam como estão.
+- `setQuery('page', 0)` / `setParams('id', 0)`: o `0` e o `""` eram tratados como "sem valor" (TypeError).
+- `isError()` considerava erro qualquer status `> 339`, incluindo redirects 3xx. Agora conta status `>= 400`
+  ou falha de conexão.
+- `curl_exec` com falha (`false`) gerava warnings. `curl_close` (deprecated no PHP 8.5) foi removido.
+- Hooks `"-nome"` (remover um hook herdado do módulo) pulavam itens.
+- O mapa dos vendors era relido do disco a cada chamada e dava warning quando faltava. Agora fica em cache
+  por processo, e módulos com `'active' => false` ficam de fora.
+- Um app sem a pasta `src/Modules/Vendor` lançava exceção ao listar os módulos vendor.
+
+#### Mudanças de comportamento
+
+1. **Front que chama módulo vendor (`VendorApi`/`/vendor/...`) precisa de `'expose' => true`** e de
+   middlewares na config do módulo. Sem isso, a rota deixa de existir depois do `php app update`.
+2. `disableSSL()` / `'ssl' => false` não têm efeito fora de DEV.
+3. `isError()` não considera mais 3xx como erro.
+
+### Build: `php app update` (Módulo 6)
+
+#### Bugs corrigidos
+
+- **Hooks `each_route`: só o primeiro rodava.** Como os hooks do app rodam antes dos dos módulos, um único
+  hook `each_route` no `config/app.php` impedia o `AddRoleToRoutes` do template: **todas as rotas ficavam sem
+  permissão** e o update respondia "SUCESSO". Agora todos rodam em cadeia, e cada um recebe a rota devolvida
+  pelo anterior.
+- Hooks registrados só no app, para eventos que nenhum módulo usa (ex.: `before_build`), eram descartados.
+- Hook inexistente (erro de digitação) era ignorado em silêncio; agora vira aviso.
+- Mesmo path com métodos diferentes em módulos distintos: um módulo apagava as rotas do outro. Rotas
+  duplicadas (mesmo path e método) agora viram aviso.
+- Middlewares de módulos com `'active' => false` continuavam registrados.
+- `create module` aceitava `../` (criava arquivos fora de `src/Modules`) e gerava warnings ao criar as pastas.
+- `php app update --strict` (opções em qualquer posição) e mensagens de erro dos comandos sem stack trace
+  (use `--debug` para ver).
+
+#### Robustez
+
+- **Arquivos PHP gerados são dados (`var_export`), não código concatenado.** Um apóstrofo num path de rota
+  ou numa constante gerava erro de sintaxe e derrubava o site inteiro:
+  - `route-maps.build.php` é lido pelo `Wep\Router\RouteRegistrar`. Builds no formato antigo continuam
+    funcionando até o próximo `php app update`;
+  - `constants.build.php` guarda as constantes como dados. Placeholders `{OUTRA_CONSTANTE}` continuam
+    funcionando, e nomes inválidos são recusados.
+- **Escrita atômica** (`Wep\Engine\Builder\BuildFile`): uma requisição durante o deploy nunca inclui um
+  arquivo pela metade.
+- Quebras de linha `\n` nos arquivos gerados (antes `\r` sozinho). No JS gerado, paths e nomes passam
+  por `json_encode`, e nomes de componente viram identificadores válidos.
+
+#### Mudanças de comportamento
+
+1. **Hook que falha vira aviso (ALERTA) e o build conclui.** O `php app update` não exige mais banco de
+   dados (o hook do Menu só avisa). Para abortar em qualquer falha (CI/deploy): `php app update --strict`.
+2. Rotas duplicadas e hooks inexistentes aparecem como ALERTA na saída do update.
+
+### View e XSS (Módulo 5)
+
+#### Segurança
+
+- **`Html` escapa os valores de atributo.** Antes eles iam crus (`"$key='$value'"`), e um `'` no valor
+  injetava atributos como `onmouseover=...`. Nomes de tag e de atributo passam a ser validados.
+- **O `<title>` é escapado.** A View monta o título com parâmetros da URL (`Pedido #{id}`), o que antes
+  permitia XSS refletido em qualquer template que usasse `document_title`.
+- Helpers novos: `Html::text($tag, $texto)` (conteúdo escapado), `Html::escape()` e `Html::json()`
+  (JSON seguro dentro de `<script>`: `<`, `>`, `&` e aspas viram `<`...).
+- **Content-Security-Policy opcional** (`Wep\Http\Csp`). Com `'security' => ['csp' => true]`, o navegador só
+  executa scripts do próprio site e os inline com o nonce da requisição. O `Html` coloca o nonce em todo
+  `<script>` que monta, inclusive os do build do webpack. Fontes extras por diretiva e `report_only` para testar:
+
+```php
+'security' => [
+    'csp' => [
+        'style-src' => ['https://fonts.googleapis.com'],
+        'font-src' => ['https://fonts.gstatic.com'],
+        'report_only' => true,
+    ],
+],
+```
+
+#### Mudanças de comportamento
+
+1. Atributos saem com aspas duplas e escapados. Atributo `true` vira booleano (`<input checked>`) e
+   `false`/`null` é omitido.
+2. O conteúdo dos elementos continua sendo HTML (`Html::get('div', $html)`, `'html' => ...`): é assim que os
+   elementos aninhados são montados. **Texto de usuário deve passar por `Html::text()` ou `Html::escape()`.**
+3. `Html::append()` com alvo diferente de `head`/`body` lança exceção (antes gerava erro de array).
+4. Template inexistente (ou que não implementa `iTemplate`) lança exceção, tratada pelo ErrorHandler.
+   Antes fazia `echo` do nome da classe e `exit`.
+
+#### Template (wep/project)
+
+- `Main.php`: o título da página volta a funcionar (usava `$route->view->title`, que não existe, e saía
+  vazio), `window.App` usa `Html::json()` e a página não quebra mais sem o build do webpack (registra um
+  aviso no log).
+- A senha temporária mostrada ao admin vem do servidor. A tela exibia fixo "mudar123".
+- O link de item de menu só aceita caminho interno ou `http(s)://` (bloqueia `javascript:`).
+- Removido o `InviteSignup.php` (namespace errado, nunca era carregado).
+- `config/app.php` traz a CSP sugerida, desligada.
+
+### Sessão, autenticação e instalação (Módulo 4)
+
+#### Segurança
+
+- **`Session` com configuração segura por padrão:**
+  - `use_strict_mode`: o PHP recusa IDs de sessão que ele não gerou. Antes, um ID plantado pelo atacante
+    era aceito e mantido depois do login (*session fixation*);
+  - cookie `HttpOnly`, `SameSite=Lax` e `Secure` em HTTPS;
+  - expiração por inatividade (padrão 2h);
+  - `Session::regenerate()` novo; `Session::end()` agora também apaga o cookie;
+  - novos `Session::has()` e `Session::forget()`.
+- **`Wep\Security\RateLimiter`:** limite de tentativas por chave, guardado em `storage/cache/rate-limit`.
+- **`Wep\Security\Token`:** tokens de uso único com validade. No banco fica só o "selo"
+  (`sha256:expiração`), e `Token::password()` gera senhas temporárias legíveis.
+- **`php app install`:** instalação pelo terminal (`Wep\Engine\Install`), substituindo a página web
+  `/install` do template, que era pública, gravava o `.env` com input do usuário e podia ser executada de novo:
+  - grava o `.env` via `Env::set` (sem injeção de linhas);
+  - testa o banco;
+  - executa `database/*.sql` uma instrução por vez (`Wep\DB\SqlScript`), sem precisar de multi-statements;
+  - roda o build e o instalador da aplicação (config `'installer'`, interface `Wep\Engine\Installer`);
+  - grava `storage/install.lock`. Reinstalar exige `--force`.
+- `Wep\Command\Console::ask()` e `secret()` para comandos interativos.
+
+Config (`config/app.php`, opcional):
+
+```php
+'session' => [
+    'idle_timeout' => 7200,   // segundos sem atividade; 0 desliga
+    'lifetime' => 0,          // validade do cookie; 0 = até fechar o navegador
+    'samesite' => 'Lax',
+    'secure' => null,         // null = só em HTTPS
+    'name' => 'PHPSESSID',
+],
+'installer' => \App\Common\Installer::class,
+```
+
+#### Mudanças de comportamento
+
+1. **Sessões são encerradas após 2h sem atividade** (`'idle_timeout' => 0` mantém o comportamento antigo).
+2. IDs de sessão desconhecidos passam a ser substituídos por um ID novo (`use_strict_mode`).
+3. `DB::connect()` aceita senha vazia (ex.: MySQL local). Antes recusava antes mesmo de tentar conectar.
+
+#### Template (wep/project)
+
+As correções de autenticação ficam no template e são aplicadas pelo módulo Login:
+- o login troca o ID da sessão, limita tentativas (5 por usuário+IP e 30 por IP a cada 15 minutos) e só
+  redireciona para caminhos internos;
+- **senha temporária:** aleatória, válida por 72h e mostrada uma única vez ao admin (antes era `mudar123`
+  para todos). Ela não abre sessão até o usuário criar a própria senha. Antes a sessão já ficava logada e,
+  no segundo login, a conta era ativada sem trocar a senha;
+- **recuperação de senha:** o link vale 1h e o banco guarda só o hash do token. Tokens antigos, em texto
+  puro, deixam de valer após a atualização;
+- **"lembrar-me":** cookie host-only com `SameSite`; o logout passa a apagá-lo (usava o domínio `example.com`);
+  rotação do token a cada uso; restaurar a sessão não encerra mais a requisição de API com resposta vazia;
+- **convite:** o cadastro é público (antes exigia login e não funcionava) e valida status e validade.
+  O convite é reservado de forma atômica antes de criar o usuário;
+- senha mínima de 8 caracteres;
+- o módulo `Install` (web) foi removido; o schema ficou em `database/schema.sql` (InnoDB, utf8mb4).
+
+### CRUD automático: o front não monta mais queries (Módulo 3)
+
+> **Quebra de compatibilidade.** Atualize o front (`api-factory`) e os métodos sobrescritos dos módulos
+> junto com o Core. Veja "Como migrar" abaixo.
+
+#### Por quê
+
+O front montava a query (`where`, `orderBy`, `limit`...) e o servidor a repassava para o modo verbose do
+Model. Qualquer usuário com acesso a um `get` conseguia, por exemplo, mandar `leftJoin` com a tabela `user`
+e ler os hashes de senha, mandar `debug: true` e receber a query, ou atualizar e apagar a tabela inteira
+com `where id > 0`. Em vez de filtrar cada caso, o cliente deixou de enviar queries.
+
+#### O novo contrato (`Wep\Api\ClientPayload`)
+
+| Front | Payload | Servidor |
+|---|---|---|
+| `Api.get()` | `{}` | lista, com ordem e limite da config do módulo |
+| `Api.get(id)` | `{id}` | um registro (`data` é o objeto; 404 se não existir) |
+| `Api.get({status: 'on', page: 2})` | `{filters, page, per_page}` | só filtros **declarados** no módulo, por igualdade (array vira `IN`) |
+| `Api.create(campos)` | `{fields}` | insert |
+| `Api.update(id, campos)` | `{id, fields}` | update pela chave primária |
+| `Api.delete(id)` | `{id}` | delete pela chave primária |
+
+- O servidor só lê `id`, `fields`, `filters`, `page` e `per_page`. As chaves `custom` da rota e a query
+  string, que também estão no `$request->data()`, não viram mais colunas.
+- **Chaves de query recebem 400** (`where`, `or`, `andOr`, `orderBy`, `limit`, `leftJoin`, `debug`, `raw`,
+  `fetch`, `onDuplicateUpdate`), com uma mensagem que aponta o formato novo.
+- Colunas ocultas não são lidas nem gravadas e saem do resultado. `password` é sempre oculta.
+- A chave primária não é enviada pelo cliente: não dá para trocá-la no update nem escolhê-la no create
+  (a menos que esteja em `fillable`).
+- `fillable` restringe as colunas graváveis (*mass assignment*).
+- Listas têm teto (`max_limit`, padrão 1000). A paginação usa `per_page` (padrão 50).
+
+Config do módulo (`config/module.php`):
+
+```php
+'api' => [
+    'primary_key' => 'user_group_id',          // padrão "id"
+    'order_by'    => ['user_group_id', 'DESC'],
+    'filters'     => ['status'],               // colunas que o cliente pode filtrar
+    'hidden'      => ['code'],                 // além de password
+    'fillable'    => ['name', 'roles'],        // se definido, só essas colunas são gravadas
+    'per_page'    => 50,
+    'max_limit'   => 1000,
+],
+```
+
+#### API nova do Model
+
+- Para o cliente: `X::fromClient('get'|'create'|'update'|'delete')` valida o payload da requisição atual e
+  executa. `X::clientPayload('update')` só valida e devolve `{id, fields}` para quem precisa complementar no
+  servidor (lança `Wep\Api\InvalidPayloadException`, status 400).
+- Para o servidor: `X::find($id)`, `X::list($filtros, $pagina, $porPagina)`, `X::updateById($id, $campos)` e
+  `X::deleteById($id)`. O modo verbose (`X::get([...])` com `leftJoin`, `where` livre etc.) **continua
+  disponível para o código do servidor**.
+- Repassar o payload bruto do cliente para o Model (`X::update($request->data())`) é recusado com 400.
+- Tabelas sem Model (`DB::table()`): `ClientPayload::parse($request->data(), 'update', ['table' => 'menu_items', 'fillable' => [...]])`.
+
+#### Como migrar
+
+Front:
+
+| Antes | Depois |
+|---|---|
+| `Api.where("id", id).get()` | `Api.get(id)` (a resposta é o objeto, não `data[0]`) |
+| `Api.orderBy("id", "DESC").get()` | `Api.get()` + `'order_by' => ['id', 'DESC']` no módulo |
+| `Api.where("id", id).update({...})` | `Api.update(id, {...})` |
+| `Api.where("id", id).update("status", "x")` | `Api.update(id, {status: "x"})` |
+| `Api.delete("id", id)` / `Api.where("id", id).delete()` | `Api.delete(id)` |
+| `Api.where(...).metodoCustomizado(payload)` (rota com `custom.method`) | `Api.metodoCustomizado(id, payload)` |
+| filtros com `where("status", "on")` | `Api.get({status: "on"})` + `'filters' => ['status']` |
+
+Métodos sobrescritos no servidor:
+
+```php
+// antes
+$update = UserGroup::update($request->data());
+
+// depois
+$update = UserGroup::fromClient('update');
+
+// quando o servidor complementa os dados
+$fields = Menu::clientPayload('create')['fields'];
+$fields['slug'] = gerarSlug($fields['name']);
+Menu::create(['fields' => $fields]);
+```
+
+Configure `primary_key` nos módulos cuja chave não se chama `id`.
+
+#### Também neste módulo
+
+- **Módulos vendor:** `debug` vindo do cliente é ignorado (devolvia os headers e as credenciais da API
+  externa). O `debug` da config do módulo só vale em DEV. Os `params` do cliente, substituídos na URL da
+  API externa, são codificados com `rawurlencode` (`../`, `?` e `#` não mudam mais o destino).
+- **Mensagens de erro:** exceções no CRUD automático e nos módulos vendor vão para o log. O cliente recebe
+  a mensagem só em DEV; fora de DEV recebe "Não foi possível concluir a operação".
+- `RouterHttpRequest::current()`: o request da requisição em andamento.
+- `App::start()` valida `dir.root` mesmo quando a aplicação já foi iniciada.
+
+### HTTP + Router (Módulo 2)
+
+#### Segurança
+
+- **Proteção CSRF por origem**, ligada por padrão. POST, PUT, PATCH e DELETE com header `Origin` de outro
+  site (ou `Sec-Fetch-Site: cross-site`) recebem **403**. Requisições sem esses headers (curl, webhooks,
+  servidor-a-servidor) passam. O front não muda.
+- **Headers de segurança** em toda resposta: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
+  `Referrer-Policy: strict-origin-when-cross-origin`. O `X-Powered-By` é removido. HSTS fica opt-in.
+- **`Response::json()` envia `Content-Type: application/json; charset=utf-8`.** Antes a API inteira respondia
+  como `text/html`.
+- **`data()` e `$request->campo`:** a query string não sobrescreve mais o corpo nem os parâmetros da rota
+  (*parameter pollution*). A precedência é query < corpo < parâmetros da rota < `custom` da rota.
+- **`ip()` só considera `X-Forwarded-For` de proxies confiáveis** (`trusted_proxies`). Antes qualquer
+  cliente forjava o IP.
+- **Middleware desconhecido falha fechado** (erro 500 com mensagem clara). Antes um erro de digitação em
+  `use_middlewares` deixava a rota sem proteção, em silêncio.
+
+Configuração (`config/app.php`, todas opcionais):
+
+```php
+'security' => [
+    'csrf' => true,
+    'trusted_origins' => ['https://admin.exemplo.com'],
+    'csrf_except' => ['/webhook/*'],
+    'headers' => true,          // false desliga; ['X-Frame-Options' => 'DENY', 'Referrer-Policy' => null] ajusta
+    'hsts' => false,            // true ou ['max_age' => 31536000, 'include_subdomains' => false, 'preload' => false]
+    'trusted_proxies' => [],    // ex.: ['10.0.0.1', '10.0.0.0/8'] (Cloudflare, load balancer)
+],
+```
+
+#### Performance
+
+- **Um único request por ciclo**, criado depois do matching. Antes cada rota registrada criava o seu, relendo
+  headers, `$_POST` e o corpo da requisição (com 55 rotas, um JSON grande era decodificado 55 vezes).
+  O registro das rotas caiu de ~1,6 ms para ~0,45 ms por requisição.
+- Rotas estáticas são resolvidas por lookup direto (sem regex). O corpo é lido uma vez e o mapa de rotas
+  (`route-maps.php`) é carregado uma vez por processo.
+
+#### Bugs corrigidos
+
+- **PUT, PATCH e DELETE com corpo JSON chegavam corrompidos** (passavam por `parse_str`). Isso quebrava o
+  `update` e o `delete` enviados pelo `api-factory` do front.
+- Os parâmetros de rota vinham de um `array_diff` entre segmentos da URL e se perdiam quando o valor repetia
+  um segmento (`/user/{name}` com `/user/user/`). Agora vêm dos grupos da regex.
+- `$request->qualquerCoisa` devolvia o array `custom` inteiro da rota quando a propriedade não existia.
+  Agora devolve `null`, e `isset($request->campo)` funciona.
+- `all('campo')` devolvia `null` quando um dos campos excluídos não existia no corpo.
+- Uma action de rota que retornasse um valor (string, array, int) quebrava com `TypeError` (retorno `?Closure`).
+- `Route::any()` ignorava o prefixo do grupo e registrava a rota no mapa de redirects (fatal ao casar).
+- `HEAD` e métodos desconhecidos geravam warning no `foreach` sobre `null`. Agora `HEAD` usa as rotas `GET`.
+- O redirect para rota nomeada usava `rtrim(regex, '(\/)?')`, que podia cortar caracteres do fim da rota.
+- `header()` agora não diferencia maiúsculas e inclui `Content-Type`/`Content-Length`.
+- O request não dependia mais de a app estar iniciada para funcionar (`RouteMap` sem constantes devolve vazio).
+
+#### Mudanças de comportamento
+
+1. **Precedência de rotas:** a rota estática exata vence; entre dinâmicas vence a **primeira** registrada
+   (antes vencia a última que casasse). Verificado nas 55 rotas do template: nenhuma muda de dono.
+2. Trechos literais da rota são escapados na regex (antes `/arquivo.json` casava com `/arquivoXjson`).
+3. Precedência em `data()`/`$request->campo` (ver Segurança).
+4. `bearerToken()` devolve só o token (antes `"Bearer <token>"`).
+5. Middleware desconhecido lança `BadMiddlewareExecuteException` (500).
+6. Form spoofing aceita `_method` em minúsculas (`put`).
+7. Requisições bloqueadas pelo CSRF são registradas no log como `WARNING`.
+
+#### Novidades
+
+- `Wep\Http\Middleware` (interface; `iMiddleware` continua funcionando e está deprecated).
+- `Wep\Http\HttpException` (o código é o status HTTP, usado pelo `ErrorHandler`).
+- `$request->param('id')`, `$request->isSecure()`, `RouterHttpRequest::setTrustedProxies()`.
+
+### Foundation (Módulo 1)
+
+#### Novidades
+
+- **Tratamento central de erros** (`Wep\Foundation\ErrorHandler`), registrado no `App::start()`:
+  - exceções não capturadas e erros fatais são registrados em `storage/log/app-AAAA-MM-DD.log`;
+  - a resposta é JSON em requisições de API (`/api/`, `Accept: application/json` ou `X-Requested-With`)
+    e uma página HTML simples nos outros casos;
+  - com `ENV=DEV`, mostra mensagem, arquivo:linha e stack trace. Fora de DEV a resposta é sempre genérica
+    e o `display_errors` é desligado;
+  - o status HTTP vem do código da exceção quando for 4xx/5xx (exceções do router), senão é 500;
+  - warnings, notices e deprecations só vão para o log, sem interromper a requisição. Em DEV o PHP
+    continua exibindo como antes;
+  - para desligar e usar um handler próprio: `'error_handler' => false` no `config/app.php`.
+- **Cache do `.env` em produção:** fora de DEV, o `php app update` compila o `.env` em
+  `storage/builds/env.build.php` (array PHP servido pelo OPcache), e o arquivo deixa de ser interpretado
+  a cada requisição. Se o `.env` for alterado depois do build, o cache é ignorado até o próximo update.
+  Em DEV o cache é removido.
+- `config/app.php` aceita `'timezone' => 'America/Sao_Paulo'`.
+- `App::path('config', '.env')` (antes era um `@todo` vazio), `App::paths()` (objeto `Wep\Foundation\Paths`)
+  e `App::env('chave', $padrao)`.
+- `Env::set()` acrescenta a variável quando ela não existe (antes ignorava em silêncio).
+
+#### Mudanças de comportamento
+
+1. **`App::config()` e `App::env()` respeitam `false`, `0` e `"0"`.** Antes o `?:` fazia esses valores
+   caírem no fallback (`DEBUG=false` com fallback `true` devolvia `true`). Agora só `null` e `""` contam
+   como "sem valor". O mesmo vale para `App::data()`.
+2. **Valores `true`/`false` do `.env` chegam como bool** em `App::config('env.x')`. Antes passavam por
+   `getenv()` e viravam `"1"`/`""`. O `getenv()` continua igual.
+3. `App::config('env.x')` só reconhece `env.` como **prefixo** (antes qualquer chave contendo `env.`).
+4. **`App::start()` sem `dir.root` lança `InvalidArgumentException`.** Antes imprimia um JSON e devolvia
+   `null`, e o `run()` seguinte quebrava com fatal.
+5. **`App::assets()` não depende mais do caminho físico da raiz.** Antes o `explode("/public", ...)`
+   quebrava quando o root continha `/public` (ex.: `/home/user/public_html/app` no cPanel).
+   `App::assets($path, true)` usa a data de modificação do arquivo (antes `time()`, que impedia o cache
+   do navegador) e usa `&v=` quando o caminho já tem query string.
+6. **`Env::set()` recusa valores com quebra de linha** (permitia injetar variáveis no `.env`) e preserva o
+   estilo de quebra de linha do arquivo (antes só reconhecia `\r\n`).
+7. `Env` ignora linhas sem `=` e nomes inválidos (antes gerava warning), aceita prefixo `export` e BOM.
+8. **`Singleton`:** uma instância por subclasse. Antes, no PHP 8.1+, todas as subclasses compartilhavam a
+   mesma instância. O construtor passou a ser `protected` e `unserialize()` lança `LogicException`.
+9. As constantes globais (`DIR_ROOT`, `ENV`, `APP_URL`...) continuam definidas, agora só se ainda não
+   existirem (um segundo `start()` não gera warning). **Deprecated**: prefira `App::path()`/`App::paths()`.
+10. Removido o trait interno `Wep\Engine\Boot`, absorvido pelo `Core`.
+11. `BuilderHooks` não depende mais da classe `App\App` do projeto.
+
+### Repositório (Módulo 0)
+
+- `vendor/` e `composer.lock` deixaram de ser versionados (já constavam no `.gitignore`).
+- `composer.json` declara os requisitos de plataforma: `php >= 8.2`, `ext-curl`, `ext-iconv`,
+  `ext-json`, `ext-mbstring`, `ext-pdo`, `ext-pdo_mysql`. Removido o campo `version` (a versão vem da tag git).
+- Pest atualizado para `^2.36 || ^3.0`; script `composer test`.
+- Testes do DB movidos de `src/DB/tests` para `tests/{Unit,Feature,Integration}/DB`, agora rodando
+  contra as classes reais do Core (sem stubs). Documentação movida para `docs/DB.md`.
+- `.gitattributes`: normalização de quebras de linha (LF) e `export-ignore` de `tests/`, `docs/` e
+  arquivos de dev; o pacote instalado pelo Composer fica menor.
+- Removidos arquivos mortos: `test`, `tests/DBTest.php` (substituído pela nova suíte),
+  `tests/BuildVendorTest.php` (todo comentado), `package.json`/`tests/front` (o front saiu do Core) e
+  `src/DB/Query/Builders/Verbose.php` (vazio).
+
+#### Requisito novo para rodar os testes
+
+- A extensão `pdo_sqlite` precisa estar habilitada (`extension=pdo_sqlite` no `php.ini`).
+
+### DB
+
+
+Mantida a API pública (`DB::table()->where()->get()`, `insert/update/delete`, `DB::query`,
+transações, `setConfig`, modo verbose, `debug`, `raw`, `fetch`). O que mudou está abaixo;
+**leia a seção "Mudanças de comportamento" antes de subir.**
+
+#### Segurança
+
+| Problema no original | Correção |
+|---|---|
+| Nomes de coluna/tabela concatenados na query (SQL injection via `orderBy`, `where`, `get`, `leftJoin`, `update`, `insert`, nome da tabela). 11 de 13 vetores testados passavam. | Novo `Builders/Identifier`: só aceita `col`, `tabela.col`, `*`, `col AS alias`, `DISTINCT`, `COUNT/SUM/AVG/MIN/MAX` e `RAND()` no order. Tudo é escapado com crase. Qualquer outra coisa vira `Response::error`. |
+| `limit()` / `page()` concatenados sem validar. | Forçados para inteiros >= 0. |
+| `update()` com só `or()` passava pelo guard "no where clause" e gerava `SET a = :x OR id = :y`, **atualizando a tabela inteira**. | `or()`/`andOr()` sem `where()` agora é erro. |
+| Operador inválido executava `exit()`, matando o processo. | Vira `Response::error`. |
+| DSN montado por concatenação (`db_name = "x;host=outro"` trocava o servidor). | `host`, `dbname` e `charset` validados por regex. |
+| Várias queries por chamada (`;`) habilitadas: qualquer injection virava "stacked query". | `MYSQL_ATTR_MULTI_STATEMENTS` desligado (religue com `setConfig(['multi_statements' => true])`). |
+| Mensagem crua do MySQL (tabelas, colunas, usuário@host) devolvida a quem chamou. | Detalhe vai para `error_log`; quem chama recebe mensagem genérica (`Registro duplicado`, etc.). |
+| `Connection` guardava a senha em propriedade (aparecia em `print_r`/`var_dump`/logs de objeto). | Credenciais não ficam mais no objeto. |
+| `fetch('qualquer')` passava direto para `constant()`. | Whitelist de modos. |
+
+#### Bugs corrigidos
+
+- `where('stock', '>', 0)` / `'!='` com `''`: valor "falsy" era confundido com operador omitido (virava `stock = '>'`). Agora decidido pela quantidade de argumentos.
+- `where(['status' => 'on'])` e `where('id', [1,2])` (antes erro/TypeError) funcionam; array vira `IN`.
+- `DB::table($t, ['debug' => true])` sobrescrevia `DB::$pdo` com um objeto vazio e quebrava todas as queries seguintes. Debug não abre mais conexão.
+- `DB::query("SELECT '10:30'")` era rejeitada como "Missing placeholder values".
+- `DB::query` com `?` posicional; detecção de tipo de query (`\n SELECT`, `WITH`, `SHOW`) agora vem de `columnCount()`.
+- `onDuplicateUpdate`: `0` era descartado; podia gerar `ON DUPLICATE KEY UPDATE ` vazio (SQL inválido).
+- `IN ()` vazio gerava SQL inválido (agora `1 = 0` / `1 = 1`).
+- Tabela com nome reservado (`order`) quebrava no join (agora com crase).
+- `leftJoin(['tabela' => [[a,b],[c,d]]])` descartava a 1ª condição `ON`.
+- `delete(['where' => ['id', 1]])` gerava condição inválida; agora aceita as mesmas formas do `update` verboso.
+- `uniqid()` como placeholder podia repetir e corromper o bind silenciosamente; trocado por `:p1, :p2...`.
+- `Condition` usava propriedade estática compartilhada (não reentrante) e variável `$aliases` inexistente.
+- `bool false` era gravado como `''` (erro em coluna `TINYINT` no modo estrito).
+- Estado do `Handler` agora é resetado mesmo quando a montagem falha (`try/finally`).
+
+#### Performance
+
+- `uniqid()` por placeholder (faz `usleep`): `IN` com 1000 valores ~2x mais rápido na montagem.
+- Removido o `SET NAMES` no connect (o charset já vai no DSN): -1 round-trip por conexão.
+- `bindValue` no lugar de `bindParam` por referência em objeto; `isAssoc` sem alocar `range()`.
+- Debug não abre conexão; `parseQueryRaw` só roda em debug.
+- Queries de mesmo formato agora geram SQL idêntico (`:p1...`), o que ajuda cache de statement/log.
+
+Nas queries simples a diferença some: o tempo é dominado pelo round-trip ao banco.
+
+
+#### Mudanças de comportamento (revise)
+
+1. **Expressões SQL em campos/where/order** (`IFNULL(a,b)`, `LOWER(col)`, `DATE(x)`) agora exigem `DB::raw('...')`. Barradas com mensagem explicando.
+2. **Mensagens de erro do banco genéricas.** Se algum código depende do texto cru, use `DB::setConfig(['expose_errors' => true])`.
+3. **Multi-statements desligado.** Migrations/scripts com `;` em um `DB::query` precisam de `multi_statements => true`.
+4. **`null_as_empty` continua `true`** (NULL gravado como `""`, como no original). Recomendo desligar (`setConfig(['null_as_empty' => false])`) depois de checar as colunas `NOT NULL`.
+5. `onDuplicateUpdate`: `0`/`"0"` agora atualizam; `null`/`""` continuam sem sobrescrever; sem colunas válidas, a cláusula é omitida.
+6. `or()`/`andOr()` sem `where()`, `between` sem 2 valores e operador inválido retornam `Response::error`.
+7. Charset padrão `utf8mb4` (antes `utf8`); timeout de conexão 10s (`db_timeout`).
+8. `DB::query` que não retorna linhas passa a responder `last_id` e `affected_rows` (antes tentava `fetchAll`).
+9. `page(0)` ou negativa vira página 1.
+10. `Executor::execute()` aceita `?PDO` (necessário para o modo debug).
+11. Placeholders no SQL/debug agora são `:p1, :p2...`; `query_raw` passa a quotar os valores.
+12. Arquivos normalizados para LF (o original misturava CRLF e LF).
+
+#### Novidades
+
+- `DB::raw($sql)` para expressões confiáveis. `setConfig`: `null_as_empty`, `expose_errors`, `multi_statements`.
+- `where(['col' => valor])` (assoc), `Response` com `affected_rows`, alias de tabela (`'orders o'`).
+- Novas classes: `Query/Raw`, `Query/Formatter`, `Query/Builders/Identifier`, `Query/Builders/Placeholders`.
+
+#### Mantido de propósito (não alterei)
+
+- Valores continuam bindados como string (bindar int contra `VARCHAR` faz o MySQL converter a coluna: `code = 0` casaria com qualquer texto e perderia o índice).
+- `fetch('obj')` continua devolvendo só a primeira linha.
+- `orderBy('a','b','DESC')` continua gerando `ORDER BY a, b DESC` (DESC só em `b`).
+- Precedência de `or()` (`WHERE a AND b OR c`) e só `LEFT JOIN`.
+- **Transações aninhadas**: `beginTransaction()` dentro de outra é no-op e o `commit()` interno fecha a externa. É um risco real, mas é decisão de design (savepoints), então não mexi.
+- `DB::$pdo` público. (`Builders/Verbose.php`, que estava vazio, foi removido no Módulo 0.)
+

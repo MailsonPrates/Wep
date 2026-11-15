@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\Router\Middlewares;
+namespace Wep\Router\Middlewares;
 
 abstract class MiddlewareRoute
 {

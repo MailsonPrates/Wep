@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Env;
+namespace Wep\Env;
 
-use App\Core\Env\AbstractProcessor;
+use Wep\Env\AbstractProcessor;
 
 class BooleanProcessor extends AbstractProcessor
 {

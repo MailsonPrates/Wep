@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Core\Http;
+namespace Wep\Http;
 
-use App\Core\Http\Request;
 
 trait Methods
 {
@@ -22,7 +21,7 @@ trait Methods
     public static function post($url="", $fields=null)
     {
         $is_verbose = is_array($url) && is_null($fields);
-        $request = new Request();
+        $request = new static();
 
         $options = $is_verbose
             ? $url
@@ -39,7 +38,7 @@ trait Methods
     public static function put($url="", $fields=null)
     {
         $is_verbose = is_array($url) && is_null($fields);
-        $request = new Request();
+        $request = new static();
 
         $options = $is_verbose
             ? $url
@@ -56,7 +55,7 @@ trait Methods
     public static function patch($url="", $fields=null)
     {
         $is_verbose = is_array($url) && is_null($fields);
-        $request = new Request();
+        $request = new static();
 
         $options = $is_verbose
             ? $url
@@ -73,7 +72,7 @@ trait Methods
     public static function delete($url="", $fields=null)
     {
         $is_verbose = is_array($url) && is_null($fields);
-        $request = new Request();
+        $request = new static();
 
         $options = $is_verbose
             ? $url
@@ -103,7 +102,7 @@ trait Methods
     public static function get($url="", $query=null)
     {
         $is_verbose = is_array($url) && is_null($query);
-        $request = new Request();
+        $request = new static();
 
         $options = $is_verbose
             ? $url

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\DB\Query;
+namespace Wep\DB\Query;
 
 trait Helpers
 {
@@ -22,39 +22,21 @@ trait Helpers
 
     /**
      * Verifica se array é associativo
+     * (sem alocar range()/array_keys() como antes)
      * @param array $arr
      * @return bool
      */
     private function isAssoc($arr)
     {
-        if (array() === $arr) return false;
-        return array_keys($arr) !== range(0, count($arr) - 1);
-    }
+        if ( !is_array($arr) ) return false;
 
-    private static function parseQueryRaw($query_string, $placeholders=[])
-    {
-        if ( empty($placeholders) ) return $query_string;
+        $i = 0;
 
-        $parts = explode(":", $query_string);
-        $parsed = [];
-
-        foreach( $parts as $index => $word ){
-
-            if ( $index === 0 ){
-                $parsed[] = $word;
-                continue;
-            };
-
-            $key = explode(" ", $word)[0];
-            $key = str_replace([",", ")"], "", $key);
-            $key_value = $placeholders[$key] ?? $key;
-
-            $parsed[] = str_replace($key, $key_value, $word);
+        foreach( $arr as $key => $_ ){
+            if ( $key !== $i++ ) return true;
         }
 
-        $parsed = join("", $parsed);
-
-        return $parsed;
+        return false;
     }
 
     /**
@@ -91,14 +73,6 @@ trait Helpers
                 $arguments = [$arguments];
             }
 
-            /*echo json_encode([
-                'isAssc' => $is_assoc_array,
-                'first_is_array' => $first_is_array,
-                'props' => $props['leftJoin'],
-                'arguments' => $arguments
-            ]);
-            exit();*/
-
             call_user_func_array([$this, 'leftJoin'], $arguments);
         }
 
@@ -113,11 +87,11 @@ trait Helpers
             $arguments = $props[$prop] ?? null;
 
             if ( !is_null($arguments) ){
-                $arguments = isset($props[$prop][0]) && is_array($props[$prop][0]) 
-                    ? [$props[$prop]] 
-                    : $props[$prop];
-    
-                call_user_func_array([$this, $prop], $arguments);
+
+                // lista de condições ou ["col" => valor]: vai como um único argumento (bulk)
+                $is_bulk = (isset($arguments[0]) && is_array($arguments[0])) || $this->isAssoc($arguments);
+
+                call_user_func_array([$this, $prop], $is_bulk ? [$arguments] : $arguments);
             }
         }
 

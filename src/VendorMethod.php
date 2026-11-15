@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Engine\Builder\Vendor\Endpoint;
+use Wep\Engine\Builder\Vendor\Endpoint;
 use Exception;
-use App\Core\Http\HttpRequest;
+use Wep\Http\HttpRequest;
 
 class VendorMethod
 {
@@ -60,13 +60,19 @@ class VendorMethod
             'arguments' => $arguments[0] ?? []
         ];
 
-        if ( $method_data['debug'] ) return [
+        // debug devolve headers/credenciais da API externa: só em DEV
+        if ( !empty($method_data['debug']) && self::isDev() ) return [
             'method_data' => $method_data,
             'request_props' => $props,
             'method_name' => $methodName
         ];
 
         return $this->executeMethod($props);
+    }
+
+    private static function isDev(): bool
+    {
+        return defined('ENV_DEV') && ENV_DEV;
     }
 
     protected function executeMethod($config)
@@ -110,6 +116,11 @@ class VendorMethod
                 }
             }
         }
+
+        // getOptions() inclui headers e Basic Auth da API externa: só em DEV
+        $is_debug = !empty($arguments['debug']) && self::isDev();
+
+        if ( $is_debug ) return $request->getOptions();
 
         $request->execute();
         $response = $request->response();

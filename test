@@ -1,2 +1,0 @@
-<?php
-include("./vendor/bin/pest");

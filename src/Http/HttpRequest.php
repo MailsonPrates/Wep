@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Http;
+namespace Wep\Http;
 
-use App\Core\Http\Methods;
-use App\Core\Response;
+use Wep\Http\Methods;
+use Wep\Response;
 
 class HttpRequest {
 
@@ -105,7 +105,7 @@ class HttpRequest {
 
 			$options['ssl']
 				? $this->enableSSL()
-				: $this->disableCookies();
+				: $this->disableSSL();
 		}
 
 		if ( isset($options['setTimeout']) ){
@@ -161,7 +161,7 @@ class HttpRequest {
 
 	public function setQuery($key, $value=null)
 	{
-		$is_bulk = !$value;
+		$is_bulk = is_array($key);
 		$query = $is_bulk ? $key : [$key => $value];
 
 		$this->query = array_merge($this->query, $query);
@@ -173,7 +173,7 @@ class HttpRequest {
 
 	public function setParams($key, $value=null)
 	{
-		$is_bulk = !$value;
+		$is_bulk = is_array($key);
 		$params = $is_bulk ? $key : [$key => $value];
 
 		//$this->debug[] = [$this->params, $params];
@@ -288,7 +288,14 @@ class HttpRequest {
 	 */
 	public function disableSSL() 
 	{
-		$this->ssl = TRUE;
+		// só em DEV (ex.: certificado autoassinado local). Em produção a verificação continua
+		// ligada: um disableSSL() esquecido exporia as credenciais a man-in-the-middle.
+		if ( defined('ENV_DEV') && ENV_DEV ){
+			$this->ssl = FALSE;
+		} else {
+			\Wep\Foundation\ErrorHandler::log('WARNING', 'HttpRequest::disableSSL() ignorado fora de DEV: ' . $this->url);
+		}
+
 		return $this;
 	}
 
@@ -533,8 +540,17 @@ class HttpRequest {
 		// Follow redirects (maximum of 5).
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 		curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+		// só http/https, também nos redirects (bloqueia file://, gopher:// etc.)
+		if ( defined('CURLOPT_PROTOCOLS_STR') ){
+			curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'http,https');
+			curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS_STR, 'http,https');
+		} else {
+			curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+			curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+		}
 		// SSL support.
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->ssl);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->ssl ? 2 : 0);
 		// Set a custom UA string so people can identify our requests.
 		curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
 		// Output the header in the response.
@@ -544,7 +560,12 @@ class HttpRequest {
 		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 		$time = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
-		curl_close($ch);
+		unset($ch);
+
+		if ( $response === false ){
+			$response = '';
+			$header_size = 0;
+		}
 
 		// Set the header, response, error and http code.
 		$this->responseHeader = substr($response, 0, $header_size);
@@ -574,7 +595,7 @@ class HttpRequest {
 
 	public function isError()
 	{
-		return $this->getHttpCode() > 339 || $this->getError();
+		return $this->getHttpCode() >= 400 || $this->getHttpCode() === 0 || (bool) $this->getError();
 	}
 
 	public function setResponse($response=[])

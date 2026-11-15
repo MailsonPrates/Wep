@@ -1,9 +1,12 @@
 <?php
 
-namespace App\Core\DB\Query\Methods;
+namespace Wep\DB\Query\Methods;
 
-use App\Core\DB\Query\Methods\MethodInterface;
-use App\Core\Obj;
+use Wep\DB\Query\Builders\Identifier;
+use Wep\DB\Query\Builders\Placeholders;
+use Wep\DB\Query\Methods\MethodInterface;
+use Wep\Obj;
+use InvalidArgumentException;
 
 class Insert implements MethodInterface
 {
@@ -30,59 +33,61 @@ class Insert implements MethodInterface
         $this->table = $props->table;
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     public function build(array $fields=[])
     {
-        // Fields
-        $fields_cols = array_keys($fields);
-        $placeholders = [];
-        $id = uniqid("_");
-        $fields_cols_keys_list = [];
+        $bag = new Placeholders();
+        $cols = [];
+        $marks = [];
 
-        foreach( $fields_cols as $i => $col ){
-            $key = $col.$id;
-            $fields_cols_keys_list[] = $key;
-
-            $placeholders[$key] = $fields[$col];
-            $fields_cols[$i] = "`$col`";
+        foreach( $fields as $col => $value ){
+            $cols[] = Identifier::quote($col);
+            $marks[] = $bag->add($value);
         }
 
-        $fields_cols_joined = join(", ", $fields_cols);
-        $fields_cols_keys = join(", ", preg_filter('/^/', ":", $fields_cols_keys_list));
-
         // Inicia montagem da query
-        $query = "INSERT INTO `".$this->table . "` ($fields_cols_joined) VALUES ($fields_cols_keys)";
+        $query = "INSERT INTO " . Identifier::quote($this->table) 
+            . " (" . implode(", ", $cols) . ") VALUES (" . implode(", ", $marks) . ")";
 
         // On duplicate key update
         $duplicate_update_fields = $this->duplicateUpdate;
-        $has_duplicate_update = !empty($duplicate_update_fields);
         
-        if ( $has_duplicate_update ){
+        if ( !empty($duplicate_update_fields) ){
 
-            // ->onDuplicateUpdate("name", "sobrenome");
-            $is_direct_params = count($duplicate_update_fields) === 1 && is_array($duplicate_update_fields[0]);
+            // ->onDuplicateUpdate(["name", "sobrenome"]);
+            $is_direct_params = count($duplicate_update_fields) === 1 && is_array($duplicate_update_fields[0] ?? null);
             $duplicate_update_fields = $is_direct_params ?  $duplicate_update_fields[0] : $duplicate_update_fields;
 
-            $duplicate_key = [];
+            $updates = [];
 
             foreach( $duplicate_update_fields as $col ){
+
+                if ( !is_string($col) ){
+                    throw new InvalidArgumentException("Invalid onDuplicateUpdate column");
+                }
+
+                // coluna fora do insert, ou sem valor (null/""), não sobrescreve o registro existente.
+                // Atenção: 0 e "0" SÃO valores válidos (antes eram descartados por !$value).
                 $value = $fields[$col] ?? null;
 
-                if ( !$value ) continue;
+                if ( $value === null || $value === "" ) continue;
 
-                $duplicate_key[] = "$col = :$col".$id;
+                $updates[] = Identifier::quote($col) . " = " . $bag->add($value);
             }
 
-            $query .= " ON DUPLICATE KEY UPDATE ".join(", ", $duplicate_key);
+            // sem nada para atualizar, não gera a cláusula (antes gerava SQL inválido)
+            if ( !empty($updates) ){
+                $query .= " ON DUPLICATE KEY UPDATE " . implode(", ", $updates);
+            }
         }
 
-
-        $response = Obj::set([
+        return Obj::set([
             'string' => $query,
-            "placeholders" => $placeholders,
+            "placeholders" => $bag->all(),
             'duplicate_update_fields' => $this->duplicateUpdate
         ]);
-
-        return $response;
     }
 
 

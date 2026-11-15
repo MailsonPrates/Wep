@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\RouteGroups;
-use App\Core\Router\Traits\RouterHelpers;
-use App\Core\Router\Traits\RouteManagement;
-use App\Core\Router\Exceptions\NotFoundException;
-use App\Core\Router\Exceptions\BadMethodCallException;
-use App\Core\Router\Exceptions\MethodNotAllowedException;
-use App\Core\Router\Middlewares\MiddlewareCollection;
-use App\Core\Router\Exceptions\BadMiddlewareExecuteException;
+use Wep\Router\RouteGroups;
+use Wep\Router\Traits\RouterHelpers;
+use Wep\Router\Traits\RouteManagement;
+use Wep\Router\Exceptions\NotFoundException;
+use Wep\Router\Exceptions\BadMethodCallException;
+use Wep\Router\Exceptions\MethodNotAllowedException;
+use Wep\Router\Middlewares\MiddlewareCollection;
+use Wep\Router\Exceptions\BadMiddlewareExecuteException;
 
 class RouteCollection
 {
@@ -61,14 +61,16 @@ class RouteCollection
     {
         $this->baseUrl = $baseUrl;
         $this->actionSeparator = $separator;
-        $this->currentUri = filter_input(INPUT_GET, "route", FILTER_DEFAULT) ?? "/";
+        // filter_input lê a query string original; $_GET é o fallback (CLI/testes)
+        $route = filter_input(INPUT_GET, "route", FILTER_DEFAULT) ?? ($_GET["route"] ?? null);
+        $this->currentUri = is_string($route) && $route !== "" ? $route : "/";
     }
 
     /**
      * Method responsible for defining the 
      * group of current routes.
      * 
-     * @param null|\App\Core\Router\RouteGroups $group = null
+     * @param null|\Wep\Router\RouteGroups $group = null
      * 
      * @return void
      */
@@ -81,7 +83,7 @@ class RouteCollection
      * Method responsible for returning the
      * current route.
      * 
-     * @return null|\App\Core\Router\RouteManager
+     * @return null|\Wep\Router\RouteManager
      */
     public function getCurrentRoute()
     {
@@ -96,7 +98,7 @@ class RouteCollection
      * @param string $uri
      * @param array|string|\Closure $callback
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public function addRoute(String $method, $uri, $callback)
     {
@@ -115,19 +117,19 @@ class RouteCollection
      * @param array|string|\Closure $callback
      * @param null|array $methods
      * 
-     * @return \App\Core\Router\RouteManager
+     * @return \Wep\Router\RouteManager
      */
     public function addMultipleHttpRoutes(String $uri, $callback, ?array $methods = null)
     {
-        if (!$methods) {
-            $methods = array_keys($this->routes);
-        }
+        // "REDIRECT" não é método HTTP: antes entrava aqui e a rota virava um item do mapa de
+        // redirects (fatal ao casar). O prefixo do grupo também não era aplicado.
+        $methods = $methods ?: array_diff(array_keys($this->routes), ["REDIRECT"]);
+        $methods = array_intersect(array_map("strtoupper", $methods), array_keys($this->routes));
+        $uri = $this->resolveRouterUri($uri);
 
-        $methods = array_map("strtoupper", $methods);
-
-        array_map(function ($method) use ($uri, $callback) {
+        foreach ($methods as $method) {
             $this->routes[$method][$uri] = $this->addRouter($uri, $callback);
-        }, $methods);
+        }
     }
 
     /**
@@ -173,7 +175,7 @@ class RouteCollection
      * @param string $routeName
      * @param null|string $httpMethod = null
      * 
-     * @return \App\Core\Router\RouteManager|null
+     * @return \Wep\Router\RouteManager|null
      */
     public function getByName(String $routeName, $httpMethod = null): ?RouteManager
     {
@@ -236,7 +238,8 @@ class RouteCollection
         [$routeObject, $route] = $routes;
 
         if ($this->instanceOf($routeObject, RouteManager::class)) {
-            $redirectRoute .= rtrim($routeObject->getRoute(), '(\/)?');
+            // antes: rtrim(regex, '(\/)?'), que removia caracteres soltos do fim da rota
+            $redirectRoute .= $routeObject->getOriginalRoute();
         } else {
             $redirectRoute .= $this->resolveRouterUri($route["redirect"]);
         }
@@ -253,10 +256,11 @@ class RouteCollection
      */
     protected function resolveRequestMethod()
     {
-        $method = $_SERVER["REQUEST_METHOD"];
+        $method = strtoupper($_SERVER["REQUEST_METHOD"] ?? "GET");
+        $spoofed = is_string($_POST["_method"] ?? null) ? strtoupper($_POST["_method"]) : null;
 
-        if (isset($_POST["_method"]) && in_array($_POST["_method"], $this->formSpoofingMethods)) {
-            $this->requestMethod = $_POST["_method"];
+        if ($method === "POST" && in_array($spoofed, $this->formSpoofingMethods, true)) {
+            $this->requestMethod = $spoofed;
             return null;
         }
 
@@ -266,7 +270,10 @@ class RouteCollection
     /**
      * Method responsible for listening to browser calls
      * and returning the corresponding route.
-     * 
+     *
+     * Precedência: rota estática exata (lookup direto) e, se não houver, a primeira rota
+     * dinâmica que casar, na ordem de registro. (Antes vencia a última que casasse.)
+     *
      * @return void
      */
     public function run(): void
@@ -285,13 +292,53 @@ class RouteCollection
 
         $this->resolveRequestMethod();
 
-        foreach ($this->routes[$this->requestMethod] as $route) {
-            if (preg_match("~^" . $route->getRoute() . "$~", $this->currentUri)) {
-                $this->currentRoute = $route;
-            }
+        [$this->currentRoute, $params] = $this->findRoute($this->currentUri, $this->requestMethod);
+
+        if ($this->currentRoute) {
+            $this->currentRoute->setRequest($this->newRequest($this->currentRoute, $params));
         }
 
         $this->dispatchRoute();
+    }
+
+    /**
+     * Encontra a rota para a URI e o método.
+     *
+     * @return array{0: RouteManager|null, 1: array<string, string>} rota e parâmetros
+     */
+    public function findRoute(String $uri, String $method): array
+    {
+        $method = strtoupper($method);
+        $routes = $this->routes[$method === "HEAD" ? "GET" : $method] ?? [];
+
+        $static = $routes[$this->fixRouterUri($uri)] ?? null;
+
+        if ($static instanceof RouteManager && $static->isStatic()) {
+            return [$static, []];
+        }
+
+        foreach ($routes as $route) {
+            if ($route->isStatic()) continue;
+
+            $params = $route->matches($uri);
+
+            if ($params !== null) {
+                return [$route, $params];
+            }
+        }
+
+        return [null, []];
+    }
+
+    /**
+     * O único request do ciclo (antes: um por rota registrada).
+     */
+    protected function newRequest(RouteManager $route, array $params): Http\RouterHttpRequest
+    {
+        $request = new Http\RouterHttpRequest($this->baseUrl, $route->getOriginalRoute(), $params);
+        Http\RouterHttpRequest::setCurrent($request);
+
+        return $request;
     }
 
     /**
@@ -318,12 +365,14 @@ class RouteCollection
      * Method responsible for performing
      * route actions.
      * 
-     * @return null|\Closure
+     * @return mixed retorno da action (antes ?Closure: qualquer action que retornasse um valor
+     *               — string, array, int — quebrava com TypeError)
      */
-    protected function dispatchRoute(): ?\Closure
+    protected function dispatchRoute(): mixed
     {
         if (!$route = $this->currentRoute) {
             if($fallbackRoute = $this->getByName('fallback')) {
+                $fallbackRoute->setRequest($this->newRequest($fallbackRoute, []));
                 return $this->executeRoute($fallbackRoute);
             }
             

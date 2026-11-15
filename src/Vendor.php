@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use App\Core\Engine\Builder\Vendor\Vendor as BuilderVendor;
-use App\Core\VendorMethod;
+use Wep\Engine\Builder\Vendor\Vendor as BuilderVendor;
+use Wep\VendorMethod;
 use Exception;
 
 trait Vendor

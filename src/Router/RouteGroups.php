@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Core\Router;
+namespace Wep\Router;
 
-use App\Core\Router\RouteCollection;
-use App\Core\Router\Middlewares\MiddlewareCollection;
+use Wep\Router\RouteCollection;
+use Wep\Router\Middlewares\MiddlewareCollection;
 
 class RouteGroups
 {
@@ -30,7 +30,7 @@ class RouteGroups
     /**
      * Set a namespace for the group.
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public function namespace($namespace): RouteGroups
     {
@@ -42,7 +42,7 @@ class RouteGroups
     /**
      * Set a prefix for the group.
      * 
-     * @return \App\Core\Router\Router\RouteGroups
+     * @return \Wep\Router\Router\RouteGroups
      */
     public function prefix($prefix): RouteGroups
     {
@@ -54,7 +54,7 @@ class RouteGroups
     /**
      * Set a name for the group.
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public function name($name): RouteGroups
     {
@@ -66,7 +66,7 @@ class RouteGroups
     /**
      * Set a middlewares for the group.
      * 
-     * @return \App\Core\Router\RouteGroups
+     * @return \Wep\Router\RouteGroups
      */
     public function middlewares($middlewares): RouteGroups
     {

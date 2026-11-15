@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Core\View\Template;
+namespace Wep\View\Template;
 
 trait HtmlElements
 {

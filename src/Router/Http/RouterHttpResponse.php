@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Core\Router\Http;
+namespace Wep\Router\Http;
 
-use App\Core\Response;
+use Wep\Response;
 
 class RouterHttpResponse
 {

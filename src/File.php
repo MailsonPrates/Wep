@@ -1,216 +1,187 @@
 <?php
 
-namespace App\Core;
+namespace Wep;
 
-use Exception;
-
+/**
+ * Leitura e escrita de arquivos.
+ *
+ * @example
+ * $file = new File(DIR_BUILDS . '/mapa.json');
+ * $file->write(['a' => 1]);   // arrays/objetos viram JSON
+ * $dados = $file->read(true); // false se o arquivo não existe
+ */
 class File
 {
+    /** Permissão das pastas criadas (antes 0777: qualquer usuário do servidor podia gravar). */
+    public const DIR_MODE = 0775;
+
     public $file = null;
     public $filename = null;
 
-	public static $types = [
-        'jpg',
-        'jpeg',
-        'gif',
-        'png',
-        'webp'
-    ];
+    /** @deprecated use Upload::$types */
+    public static $types = ['jpg', 'jpeg', 'gif', 'png', 'webp'];
 
-    public static $mime_type = [
-        'image/jpeg',
-        'image/pjpeg',
-        'image/png',
-        'image/x-png',
-        'image/gif',
-        'image/webp'
-    ];
+    /** @deprecated o tipo agora vem do conteúdo do arquivo (Upload::$mime_types) */
+    public static $mime_type = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif', 'image/webp'];
 
+    /** @deprecated use Upload::$max_size */
     public static $max_size = 5242880;
-    
-    public function __construct($path=null)
-    {
-		if ( $path && !file_exists($path) ){
-			self::put($path, "");
-		}
 
-		$files = glob($path);
-		$this->file = $files[0] ?? null;
-        $this->filename = $path;
-    }
-    
-    public function read($json=false) 
-    {
-		$file = $this->file;
-		
-		if ($file) {
-			
-			$handle = @fopen($file, 'r');
-
-			if ($handle) {
-				flock($handle, LOCK_SH);
-
-				$size = 0;
-
-				$size = @filesize($file);
-
-				if ($size > 0) {
-					$data = fread($handle, $size);
-				} else {
-					$data = '';
-				}
-
-				flock($handle, LOCK_UN);
-
-				fclose($handle);
-
-				return $json ? json_decode($data, true) : $data;
-			}
-		}
-
-		return false;
-	}
-
-	public function write($content="", $json=null) 
-    {
-        if ( !is_null($json) ){
-            $json = is_array($content) || is_object($content) ? true : false;
-        }
-        
-		$file = $this->filename;
-
-		$handle = fopen($file, 'w');
-
-		flock($handle, LOCK_EX);
-
-		fwrite($handle, $json ? json_encode($content) : $content);
-
-		fflush($handle);
-
-		flock($handle, LOCK_UN);
-
-		fclose($handle);
-	}
-
-	public function delete() 
-    {
-		if (!@unlink($this->filename)) {
-		    clearstatcache(false, $this->filename);
-		}
-	}
-
-	public static function deleteAll(string $dirPath, $deleteRoot=false) 
-    {
-		if ( !is_dir($dirPath) ) return;
-
-		if ( substr($dirPath, strlen($dirPath) - 1, 1) != '/') {
-			$dirPath .= '/';
-		}
-
-		$files = glob($dirPath . '*', GLOB_MARK);
-
-		foreach ($files as $file) {
-			if ( is_dir($file) ) {
-				self::deleteAll($file, true);
-
-			} else {
-				unlink($file);
-			}
-		}
-
-		$deleteRoot && rmdir($dirPath);
-	}
-	
-	public function append($content="")
-	{
-	    self::put($this->filename, $content, FILE_APPEND | LOCK_EX);
-	}
-
-	/**
-     * Mesmo que file_put_contents, mas criando 
-     * diretórios caso nao existam
+    /**
+     * Só aponta para o arquivo. (Antes criava o arquivo e as pastas mesmo quando só ia ler.)
      */
-    public static function put($fullPath, $contents, $flags = 0)
+    public function __construct($path = null)
     {
-        $parts = explode( '/', $fullPath );
-        array_pop( $parts );
-        $dir = implode( '/', $parts );
-       
-        if( !is_dir( $dir ) )
-            mkdir( $dir, 0777, true );
-       
-        return file_put_contents( $fullPath, $contents, $flags );
-    }
-
-    public static function isEmpty($filename=""): bool|int
-    {
-        clearstatcache();
-        $size = filesize($filename);
-        return is_int($size) && $size > 0 ? false : $size;
+        $this->filename = $path;
+        $this->file = $path !== null && is_file($path) ? $path : null;
     }
 
     /**
-     * @param array $props
-     * @param string $props directory
-     * @param array $props file
-     * @param string|int $props prefix
-     * 
+     * Conteúdo do arquivo (decodificado se $json), ou false se não existe.
      */
-    public static function upload($props=[])
+    public function read($json = false)
     {
-        /**
-         * Handle Directory
-         */
-        $dir_image = DIR_ASSETS . '/images';
+        $file = $this->filename;
 
-        $directory = isset($props['directory']) 
-            ? rtrim($dir_image . $props['directory'], '/')
-            : $dir_image;
+        if ($file === null || !is_file($file)) return false;
 
-		// Check directory and create
-		if ( !is_dir($directory) && !mkdir($directory, 0777, true) ) {
-            throw new Exception("Erro ao criar o diretório");
-		}
+        $handle = @fopen($file, 'r');
 
-        /**
-         * Handle File
-         */
-        $file = $props['file'] ?? $_FILES['file'] ?? [];
+        if (!$handle) return false;
 
-        if ( empty($file) ) throw new Exception("Arquivo não enviado");
+        flock($handle, LOCK_SH);
+        $data = stream_get_contents($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
 
-        $filename = $file['name'];
+        if ($data === false) return false;
 
-        // Check file extension types
-        if ( !in_array(Str::substr(strrchr($filename, '.'), 1), self::$types) ) {
-            throw new Exception("Tipo de arquivo não permitido");
-        }
-
-        // Create new filename
-        $file_id = uniqid($props['prefix'] ? $props['prefix'] . '-' : "") . uniqid();
-        $filename_ext = explode(".", $filename)[1];
-        $filename = $file_id . '.' . $filename_ext;
-
-        // Check file mime types
-        if ( !in_array($file['type'], self::$mime_type) ) {
-            throw new Exception("Tipo de arquivo inválido");
-        }
-
-        // Check file size
-        if ( $file['size'] > self::$max_size ) {
-            throw new Exception("O tamanho do arquivo é muito grande");
-        }
-
-        // Return any upload error
-        if ( $file['error'] != UPLOAD_ERR_OK ) {
-            throw new Exception("Houve um erro ao fazer upload do arquivo: ". $file['error']);
-        }
-
-        move_uploaded_file($file['tmp_name'], $directory . '/' . $filename);
-
-        $uploaded_file = $directory . '/' . $filename;
-
-        return $uploaded_file;
+        return $json ? json_decode($data, true) : $data;
     }
-    
+
+    /**
+     * Grava de forma atômica. Arrays e objetos viram JSON; o resto é gravado como texto.
+     * (Antes um array sem o 2º parâmetro dava TypeError.)
+     *
+     * @param mixed     $content
+     * @param bool|null $json mantido por compatibilidade: o formato é decidido pelo tipo do conteúdo
+     */
+    public function write($content = "", $json = null): bool
+    {
+        $data = is_array($content) || is_object($content)
+            ? json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : (string) $content;
+
+        if ($data === false || !self::putAtomic($this->filename, $data)) return false;
+
+        $this->file = $this->filename;
+
+        return true;
+    }
+
+    public function delete()
+    {
+        if ($this->filename !== null && is_file($this->filename)) @unlink($this->filename);
+
+        $this->file = null;
+    }
+
+    public function append($content = "")
+    {
+        return self::put($this->filename, $content, FILE_APPEND | LOCK_EX);
+    }
+
+    /**
+     * Apaga o conteúdo da pasta (e a pasta, se $deleteRoot), inclusive arquivos ocultos.
+     * (Antes usava glob: arquivos com "." no início ficavam e o rmdir falhava.)
+     */
+    public static function deleteAll(string $dirPath, $deleteRoot = false)
+    {
+        if (!is_dir($dirPath)) return;
+
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dirPath, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($items as $item) {
+            $item->isDir() && !$item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+
+        $deleteRoot && @rmdir($dirPath);
+    }
+
+    /**
+     * Mesmo que file_put_contents, mas criando as pastas que faltam.
+     */
+    public static function put($fullPath, $contents, $flags = 0)
+    {
+        if (!self::ensureDir(dirname((string) $fullPath))) return false;
+
+        return file_put_contents($fullPath, $contents, $flags);
+    }
+
+    /**
+     * Grava num temporário e troca de uma vez (rename): quem lê o arquivo ao mesmo tempo
+     * nunca pega o conteúdo pela metade.
+     */
+    public static function putAtomic(string $file, string $content): bool
+    {
+        if (!self::ensureDir(dirname($file))) return false;
+
+        $temp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+
+        if (@file_put_contents($temp, $content, LOCK_EX) === false) {
+            @unlink($temp);
+            return false;
+        }
+
+        if (!@rename($temp, $file)) {
+            // Windows: rename não substitui um arquivo aberto por outro processo; tenta remover antes
+            @unlink($file);
+
+            if (!@rename($temp, $file)) {
+                @unlink($temp);
+                return false;
+            }
+        }
+
+        if (function_exists('opcache_invalidate') && str_ends_with($file, '.php')) {
+            @opcache_invalidate($file, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * Cria a pasta (e as de cima) se não existir.
+     */
+    public static function ensureDir(string $dir, int $mode = self::DIR_MODE): bool
+    {
+        if ($dir === '' || is_dir($dir)) return true;
+
+        // outra requisição pode ter criado a pasta no meio do caminho
+        return @mkdir($dir, $mode, true) || is_dir($dir);
+    }
+
+    /**
+     * true se o arquivo não existe ou está vazio.
+     * (Antes devolvia 0 para vazio e false para arquivo com conteúdo: os dois "falsos".)
+     */
+    public static function isEmpty($filename = ""): bool
+    {
+        clearstatcache(true, $filename);
+
+        return !is_file($filename) || filesize($filename) === 0;
+    }
+
+    /**
+     * Upload de imagem. Ver Upload::image().
+     *
+     * @return string caminho completo do arquivo salvo
+     */
+    public static function upload($props = [])
+    {
+        return Upload::image($props + ['max_size' => self::$max_size]);
+    }
 }

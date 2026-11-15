@@ -1,10 +1,22 @@
-*.env
-.env
-.theia/
-.vscode/
-error_log
-.phpunit.*
-/vendor
+# Dependências
+/vendor/
+/node_modules/
 composer.lock
-package.lock
-/node_modules
+package-lock.json
+
+# Ambiente / segredos
+.env
+*.env
+
+# Testes
+.phpunit.cache/
+.phpunit.result.cache
+
+# Editores e SO
+.idea/
+.vscode/
+.theia/
+.DS_Store
+
+# Logs
+error_log

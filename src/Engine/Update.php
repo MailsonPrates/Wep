@@ -1,290 +1,202 @@
 <?php
 
-namespace App\Core\Engine;
+namespace Wep\Engine;
 
-use App\Core\Core;
-use App\Core\Engine\Builder\BuilderHooks;
-use App\Core\Engine\Builder\Warning;
-use App\Core\Engine\Builder\RoutesMap;
-use App\Core\Engine\Builder\Vendor\Vendor;
-use App\Core\Obj;
-use App\Core\Str;
+use Wep\Core;
+use Wep\Engine\Builder\BuilderHooks;
+use Wep\Engine\Builder\BuildFile;
+use Wep\Engine\Builder\RoutesMap;
+use Wep\Engine\Builder\Vendor\Vendor;
+use Wep\Obj;
+use Wep\Router\RouteMap;
 
 /**
- * Classe responsável por atualizar recursos do App
+ * `php app update`: gera os arquivos de build (storage/builds).
+ *
+ * Arquivos PHP gerados são só dados (var_export) e gravados de forma atômica (Builder\BuildFile).
+ * Hooks que falham viram avisos e o build continua; com `--strict` a falha aborta.
  */
 class Update
 {
-    public static function handle()
+    public static function handle($props = [])
     {
+        $strict = in_array('--strict', (array) ($props['options'] ?? []), true);
+
         BuilderHooks::reset();
+        BuilderHooks::setStrict($strict);
+
+        // remove itens expirados e arquivos de cache no formato antigo (antes do Módulo 8)
+        \Wep\Cache::refresh();
+
+        try {
+            return self::build();
+        } catch (\RuntimeException $e) {
+            // só chega aqui em modo estrito (falha de hook)
+            return Obj::set(['error' => true, 'message' => $e->getMessage()]);
+        } finally {
+            BuilderHooks::setStrict(false);
+        }
+    }
+
+    private static function build()
+    {
         BuilderHooks::beforeBuild();
 
-        $response = Obj::set([
-           'error' => false,
-           'message' => "App atualizado \\0/"
-        ]);
+        foreach (['routes', 'configs', 'endpoints', 'customSets'] as $step) {
+            $result = self::$step();
 
-        $routes_update = self::routes();
+            if ($result->error) return $result;
+        }
 
-        if ( $routes_update->error ) return $routes_update;
+        $message = "App atualizado \\0/";
 
-        $configs_update = self::configs();
-
-        if ( $configs_update->error ) return $configs_update;
-
-        $endpoints_update = self::endpoints();
-
-        if ( $endpoints_update->error ) return $endpoints_update;
-
-        $custom_sets_update = self::customSets();
-
-        if ( $custom_sets_update->error ) return $custom_sets_update;
+        // Fora de DEV compila o .env em storage/builds/env.build.php; em DEV remove o cache
+        if ( Core::syncEnvCache() ){
+            $message .= " (cache do .env gerado)";
+        }
 
         BuilderHooks::afterBuild();
-        
-        return $response;
+
+        return Obj::set([
+            'error' => false,
+            'message' => $message,
+            'warnings' => array_merge(RoutesMap::warnings(), BuilderHooks::warnings()),
+        ]);
     }
 
     private static function routes()
     {
-        $response = Obj::set([
-            'error' => false,
-            'message' => 'Rotas atualizadas',
-            'data' => []
-        ]);
-
+        $errors = [];
         $routes_build = RoutesMap::build();
 
-        $build_resources = [
-            'raw' => ROUTE_MAPS_FILENAME,
-            'frontend' => ROUTE_MAPS_BUILD_FILENAME_FRONT,
-            'backend' => ROUTE_MAPS_BUILD_FILENAME_BACK
-        ];
+        if ( !BuildFile::php(ROUTE_MAPS_FILENAME, $routes_build->raw) ) $errors[] = "Erro ao gravar o mapa de rotas (route-maps.php)";
+        if ( !BuildFile::php(ROUTE_MAPS_BUILD_FILENAME_BACK, $routes_build->backend) ) $errors[] = "Erro ao gravar as rotas do backend";
+        if ( !BuildFile::write(ROUTE_MAPS_BUILD_FILENAME_FRONT, $routes_build->frontend) ) $errors[] = "Erro ao gravar as rotas do front";
 
-        foreach( $build_resources as $type => $filename ){
-
-            $build_content = $routes_build->{$type} ?? null;
-
-            if ( !$build_content || !file_put_contents($filename, $build_content) ){
-                $response->data[] = "Erro ao atualizar o mapa de rotas: $type";
-            }
+        // storage/builds/apis/index.js: APIs dos módulos para o front
+        if ( !empty($routes_build->module_apis) && !BuildFile::write(DIR_BUILD_MODULE_APIS . "/index.js", $routes_build->module_apis) ){
+            $errors[] = "Erro ao gravar as APIs dos módulos";
         }
 
-        if ( !empty($routes_build->module_apis) ){
-            $update_module_apis = self::moduleApis($routes_build->module_apis);
+        // hooks do mesmo processo (after_build) passam a ler o mapa novo
+        RouteMap::flush();
 
-            if ( $update_module_apis->error ){
-                $response->data[] = $update_module_apis->data ?? [];
-            }
-
-        }
-
-        $has_error = !empty($response->data);
-
-        if ( $has_error ){
-            $response->error = true;
-            $response->message = "Houve erro ao atualizar as rotas";
-        }
-
-        return $response;
-    }
-
-    /**
-     * Atualiza os arquivos de api dos módulos
-     * localizados em storage/builds/apis/
-     */
-    private static function moduleApis($moduleApis="")
-    {
-        $response = Obj::set([
-            "error" => false
+        return Obj::set([
+            'error' => !empty($errors),
+            'message' => $errors ? "Houve erro ao atualizar as rotas" : 'Rotas atualizadas',
+            'data' => $errors
         ]);
-
-        $modules = $moduleApis ?? "";
-        file_put_contents(DIR_BUILD_MODULE_APIS . "/index.js", $modules);
-
-        return $response;
-      
-        $module_api_file_to_delete = glob(DIR_BUILD_MODULE_APIS."/*");  
-   
-        foreach($module_api_file_to_delete as $file) { 
-            if ( is_file($file ) ) unlink($file);  
-        }
-
-        $module_apis_to_create = $moduleApis ?? [];
-
-        foreach( $module_apis_to_create as $module ){
-
-            $filename = DIR_BUILD_MODULE_APIS . '/' . $module['filename'];
-            $content = $module['content'] ?? '';
-
-            $create_module_api_file = file_put_contents($filename, $content);
-            
-            if ( !$create_module_api_file ){
-                $response->error = true;
-                $response->data = 'Erro ao criar o arquivo '.$filename;
-                break;
-            }
-        }
-
-        return $response;
     }
 
     /**
-     * Atualiza o arquivo de configuração do app
-     * localizados em storage/builds/configs.build.json
+     * storage/builds/configs.build.json (configs públicas para o front)
      */
     private static function configs()
     {
-        $response = Obj::set([
-            'error' => false,
-            'message' => 'Configs atualizadas',
+        $configs = array_merge(
+            [
+                'name' => Core::config('name'),
+                'title' => Core::config('title|name')
+            ],
+            [
+                'app_url' => Core::config('env.app_url'),
+                'env' => Core::config('env.env')
+            ],
+            Core::$data ?? []
+        );
+
+        $json = json_encode($configs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $ok = $json !== false && BuildFile::write(CONFIGS_BUILD_FILENAME_FRONT, $json);
+
+        return Obj::set([
+            'error' => !$ok,
+            'message' => $ok ? 'Configs atualizadas' : "Erro ao atualizar o arquivo de configs",
             'data' => []
         ]);
-        
-        $app_configs = [
-            'name' => Core::config('name'),
-            'title' => Core::config('title|name')
-        ];
-
-        $app_data = Core::$data ?? [];
-
-        $env_configs = [
-            'app_url' => Core::config('env.app_url'),
-            'env' => Core::config('env.env')
-        ];
-
-        $configs = array_merge($app_configs, $env_configs, $app_data);
-        $configs_json = json_encode($configs);
-
-        $save = file_put_contents(CONFIGS_BUILD_FILENAME_FRONT, $configs_json);
-
-        if ( !$configs_json || !$save ){
-            $response->error = true;
-            $response->data[] = "Erro ao atualizar o arquivo de configs";
-        }
-
-        return $response;
     }
 
     /**
-     * Atualiza o arquivo de configuração do app
-     * localizados em storage/builds/vendor-endpoints.build.php
-     */    
+     * storage/builds/vendor-endpoints.build.php
+     */
     private static function endpoints()
     {
-        $response = Obj::set([
-            'error' => false,
-            'message' => 'Endpoints dos módulos vendor atualizados',
+        $ok = BuildFile::php(VENDOR_ENDPOINTS_MAP_FILENAME, Vendor::buildEndpointsMap());
+
+        Vendor::flush();
+
+        return Obj::set([
+            'error' => !$ok,
+            'message' => $ok ? 'Endpoints dos módulos vendor atualizados' : "Erro ao atualizar o arquivo de endpoint dos módulos vendor",
             'data' => []
         ]);
-
-        // VENDOR_ENDPOINTS_MAP
-        $endpoint_maps = Vendor::buildEndpointsMap();
-
-        $content = ['<?php'];
-        $content[] = Warning::get();
-        $content[] = "return";
-        $content[] = var_export($endpoint_maps, true) . ";";
-        $content = join("\r", $content);
-
-        $save = file_put_contents(VENDOR_ENDPOINTS_MAP_FILENAME, $content);
-
-        if ( !$save ){
-            $response->error = true;
-            $response->data[] = "Erro ao atualizar o arquivo de endpoint dos módulos vendor";
-        }
-
-        return $response;
     }
 
     /**
-     * Atualiza o arquivo de configuração customizadas do app e módulo
-     * localizados em storage/builds/constants.build.php
-     */   
+     * storage/builds/constants.build.php: constantes do app e dos módulos ('constants' nas configs).
+     *
+     * Gravadas como dados; o Core define ao iniciar. Placeholders "{OUTRA_CONSTANTE}" no texto
+     * referenciam outras constantes (ex.: '{DIR_ROOT}/uploads'). Antes o arquivo era código montado
+     * por concatenação ("define('$key', $value)"): um apóstrofo no valor quebrava o site.
+     */
     private static function customSets()
     {
-        $response = Obj::set([
-            'error' => false,
-            'message' => 'Arquivo de constantes criado',
+        $constants = Core::config('constants') ?? [];
+
+        foreach( Module::getConfigs() as $config ){
+            $constants = array_merge($constants, $config['constants'] ?? []);
+        }
+
+        $data = [];
+        $errors = [];
+
+        foreach( $constants as $key => $value ){
+            $name = strtoupper((string) $key);
+
+            if ( !preg_match('/^[A-Z_][A-Z0-9_]*$/', $name) ){
+                $errors[] = "Nome de constante inválido: $key";
+                continue;
+            }
+
+            $data[$name] = is_string($value) ? self::constantParts($value) : ['value' => $value];
+        }
+
+        if ( $errors ){
+            return Obj::set(['error' => true, 'message' => "Erro nas constantes", 'data' => $errors]);
+        }
+
+        if ( empty($data) ){
+            if ( file_exists(APP_CONSTANTS_FILENAME) ) unlink(APP_CONSTANTS_FILENAME);
+
+            return Obj::set(['error' => false, 'message' => 'Sem constantes', 'data' => []]);
+        }
+
+        $ok = BuildFile::php(APP_CONSTANTS_FILENAME, $data);
+
+        return Obj::set([
+            'error' => !$ok,
+            'message' => $ok ? 'Arquivo de constantes criado' : 'Erro ao gravar o arquivo de constantes',
             'data' => []
         ]);
-
-        /**
-         * Constants
-         */
-        $app_constants = Core::config('constants') ?? [];
-        $modules_config = Module::getConfigs();
-        $module_constants = [];
-
-        foreach( $modules_config as $config ){
-            $consts = $config['constants'] ?? [];
-            $module_constants = array_merge($module_constants, $consts);
-        }
-
-        $constants_to_define = array_merge($app_constants, $module_constants);
-
-        if ( file_exists(APP_CONSTANTS_FILENAME) ) unlink(APP_CONSTANTS_FILENAME);
-
-        if ( empty($constants_to_define) ) return $response;
-
-        $constants = [];
-
-        foreach( $constants_to_define as $key => $value ){
-            $key = strtoupper($key);
-
-            if ( is_string($value) ){
-                $value = self::parseConstant($value);
-            }
-
-            if (  is_array($value) || is_object($value)){
-                $value = var_export($value, true);
-            }
-
-            $constants[] = "define('$key', $value);";
-        }
-
-        $content = [
-            '<?php',
-            Warning::get(),
-            join("\r", $constants)
-        ];
-
-        $save = file_put_contents(APP_CONSTANTS_FILENAME, $content);
-
-        return $response;
     }
 
-    private static function parseConstant($text)
+    /**
+     * "{DIR_ROOT}/uploads" → ['parts' => [['const', 'DIR_ROOT'], ['text', '/uploads']]]
+     */
+    private static function constantParts(string $text): array
     {
-        $has_placeholder = str_contains($text, '{');
+        if ( !str_contains($text, '{') ) return ['value' => $text];
 
-        if ( !$has_placeholder ) return "'$text'";
+        $parts = [];
+        $chunks = preg_split('/\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 
-        $text_trim = str_replace(['{ ', ' }'], ['{', '}'], $text);
-        $parts = explode(' ', $text_trim);
-
-        $words_parsed = [];
-
-        foreach( $parts as $word ){
-            $is_placeholder = str_contains($word, '{');
-            $parsed = $word;
-
-            if ( $is_placeholder ){
-                $key = Str::between($word, '{', '}');
-                $placeholder = '{'.$key.'}';
-                $key = strtoupper($key);
-
-                // '{MY_CUSTOM_VAR_A}/bbbbb'
-                //  MY_CUSTOM_VAR_A . '/bbbbb'
-                $value = "$key .'";
-
-                $parsed = str_replace($placeholder, $value, $word) . "'";
+        foreach( $chunks as $index => $chunk ){
+            if ( $index % 2 === 1 ){
+                $parts[] = ['const', strtoupper($chunk)];
+            } elseif ( $chunk !== '' ){
+                $parts[] = ['text', $chunk];
             }
-                
-            $words_parsed[] = $parsed;
         }
 
-        return join(' ', $words_parsed);
+        return ['parts' => $parts];
     }
 }
