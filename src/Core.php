@@ -93,7 +93,9 @@ class Core
             ErrorHandler::configure(ENV_DEV);
         }
 
-        if ($timezone = self::$repository->get('timezone')) {
+        $timezone = self::$repository->get('timezone');
+
+        if ($timezone) {
             date_default_timezone_set($timezone);
         }
 

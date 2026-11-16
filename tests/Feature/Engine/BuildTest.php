@@ -173,6 +173,67 @@ function vendorRoutes(): array
     ));
 }
 
+/** Módulo extra (Modules/<Nome>) com a config informada; removido depois do teste. */
+function extraModule(string $name, array $config): string
+{
+    $root = builderApp();
+    $dir = "$root/src/Modules/$name/config";
+
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+
+    file_put_contents("$dir/module.php", '<?php return ' . var_export($config, true) . ';');
+
+    return "$root/src/Modules/$name";
+}
+
+describe('caminhos e CRUD automático no build', function () {
+
+    it('path sem barra é corrigido e gera ALERTA (antes: rotas relativas sem aviso)', function () {
+        $dir = extraModule('SemBarra', [
+            'routes' => [
+                'path' => 'sem-barra',
+                'groups' => [
+                    ['path' => '/', 'view' => 'index'],
+                    ['path' => 'salvar', 'method' => 'salvar'],
+                ],
+            ],
+        ]);
+
+        try {
+            $result = Update::handle();
+            $paths = array_keys(include buildFile('route-maps.php'));
+        } finally {
+            removeDir($dir);
+        }
+
+        expect($paths)->toContain('/sem-barra/')
+            ->and($paths)->toContain('/sem-barra/api/salvar/')
+            ->and(implode("\n", $result->warnings))->toContain("routes.path 'sem-barra' sem barra")
+            ->and(implode("\n", $result->warnings))->toContain("groups.path 'salvar' sem barra");
+    });
+
+    it("só as rotas de 'methods' (CRUD automático) saem marcadas com crud no front", function () {
+        $dir = extraModule('ComCrud', [
+            'db' => ['table' => 'com_crud'],
+            'routes' => [
+                'path' => '/com-crud',
+                'methods' => ['get'],
+                'groups' => [['path' => '/salvar', 'method' => 'salvar']],
+            ],
+        ]);
+
+        try {
+            Update::handle();
+            $apis = file_get_contents(testApp()['root'] . '/storage/builds/apis/index.js');
+        } finally {
+            removeDir($dir);
+        }
+
+        expect($apis)->toMatch('/"get":\{[^}]*"crud":true/')
+            ->and($apis)->toMatch('/"salvar":\{[^}]*"crud":false/');
+    });
+});
+
 describe('módulos vendor', function () {
 
     afterEach(fn () => removeDir(testApp()['root'] . '/src/Modules/Vendor/Eco'));

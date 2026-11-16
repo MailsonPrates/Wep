@@ -3,6 +3,37 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
+## [Não lançado]
+
+### Imagens enviadas: original + versão WebP em cache
+
+- Novo `Wep\ImageCache`: `ImageCache::url('/profile/x.png', 36, 36, ImageCache::COVER)` gera (e reaproveita)
+  `assets/images/cache/profile/x-36x36c.webp`, sem alterar o original. Regera quando o original muda;
+  `COVER` corta para preencher (avatares), `CONTAIN` cabe inteiro sem ampliar (logos). Sem WebP no GD,
+  usa o formato do original. Caminhos fora de `assets/images` (ou do próprio cache) são recusados.
+  `ImageCache::forget()` apaga as versões de um original.
+
+### `php app create module`
+
+- O `config/module.php` gerado vem com `'use_middlewares' => ['isLogged', 'checkPermission']`, o `path`
+  derivado do nome (`Vendas/PedidoItem` → `/vendas/pedido-item`) e uma rota de exemplo com `method`. Não
+  declara mais `'methods'` (CRUD automático): cada ação é um método do `<Módulo>Api.php`.
+- O `<Módulo>Api.php` gerado tem os parâmetros tipados (`RouterHttpRequest $request, Response $response`)
+  e um método de exemplo, para a IDE mostrar o que está disponível.
+
+### Build (`php app update`)
+
+- `routes.path` ou `groups.path` sem barra no início (`'teste'`) gerava rotas de API relativas
+  (`teste/api/create/`), que o navegador resolvia a partir da página aberta (404 sem aviso). Agora a barra é
+  acrescentada e o update mostra um ALERTA indicando o módulo.
+- As rotas do CRUD automático (`'methods'`) saem marcadas com `crud: true` no mapa de APIs do front: só elas
+  usam o contrato `{id, fields}`; os demais métodos recebem o payload como enviado.
+
+### Limpeza
+
+- Removido `RouterHttpRequest::clean()`, que nunca era chamado (os dados da requisição chegam crus; validar e
+  escapar é responsabilidade de quem os usa).
+
 ## [2.0.1] - 2026-11-15
 
 ### Roteamento pelo caminho real da URL

@@ -44,6 +44,19 @@ template: `npm run e2e` em `../wep-template` (usa este Core por path repo, sem c
 - Branches: trabalho na `develop`; release = merge `--no-ff` na `main` + tag anotada + push (só quando o
   usuário pedir). O Packagist atualiza sozinho pelas tags.
 
+## Estilo de código (PHP e JS)
+
+- Nada de atribuição dentro de condição. Em vez de `if ( $error = self::check($x) ) return ...;`, escreva:
+  ```php
+  $error = self::check($x);
+
+  if ( $error ) return $response->json($error);
+  ```
+- Quebre linhas longas: chamadas e arrays com vários itens ficam um item por linha
+  (`$m->action([` / `"a" => 1,` / `"b" => 2,` / `]);`). Sem exagero: chamadas curtas ficam numa linha.
+- Front: o React Compiler está ativo no build. Escreva componentes simples, sem `useMemo`/`useCallback`/
+  `React.memo` para performance (só quando a identidade estável for necessária por outro motivo).
+
 ## Ambiente (Windows)
 
 - git 2.35 (sem `merge-tree --write-tree`).

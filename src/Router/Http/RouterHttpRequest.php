@@ -103,25 +103,6 @@ class RouterHttpRequest
     }
 
     /**
-     * @param	array	$data
-     * @return	array
-     */
-    public function clean($data)
-    {
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                unset($data[$key]);
-
-                $data[$this->clean($key)] = $this->clean($value);
-            }
-        } elseif (!is_double($data) && !is_int($data) && !is_float($data) && !is_bool($data)) {
-            $data = htmlspecialchars((string) $data, ENT_COMPAT, 'UTF-8');
-        }
-
-        return $data;
-    }
-
-    /**
      * Method responsible for bringing
      * all request headers.
      *
