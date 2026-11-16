@@ -7,11 +7,11 @@ pacote fica em `../wep-template` (pacote `wep/project`, ver o CLAUDE.md de lá).
 ## Comandos
 
 ```
-php -d extension=pdo_sqlite -d extension=gd vendor/bin/pest          # suíte (o php.ini local não carrega essas extensões)
-php -d extension=pdo_sqlite vendor/bin/pest tests/Unit/Http           # um diretório
+php vendor/bin/pest                       # suíte (precisa de gd e pdo_sqlite no php.ini)
+php vendor/bin/pest tests/Unit/Http       # um diretório
 ```
 Testes de integração MySQL (pulados sem as variáveis; o banco precisa existir):
-`DB_TEST_HOST=127.0.0.1 DB_TEST_NAME=<banco> DB_TEST_USER=root DB_TEST_PASS= php -d extension=pdo_sqlite vendor/bin/pest`
+`DB_TEST_HOST=127.0.0.1 DB_TEST_NAME=<banco> DB_TEST_USER=root DB_TEST_PASS= php vendor/bin/pest`
 (MySQL do XAMPP: `C:/xampp/mysql/bin/mysql -uroot`). Para validar no app real use o sandbox do
 template: `npm run e2e` em `../wep-template` (usa este Core por path repo, sem cópia).
 
@@ -46,7 +46,6 @@ template: `npm run e2e` em `../wep-template` (usa este Core por path repo, sem c
 
 ## Ambiente (Windows)
 
-- O `php` do terminal (`C:\php`) não tem `gd` nem `pdo_sqlite`: use `-d extension=...`.
 - git 2.35 (sem `merge-tree --write-tree`).
 - O Windows Defender bloqueia ler arquivos com `system($_GET`: não use isso em fixtures.
 - Prefira as ferramentas de arquivo a heredocs grandes no shell (o shell estraga `\` e blocos longos).
