@@ -4,6 +4,7 @@ namespace Wep\Engine\Builder\Snippets;
 
 use Wep\File;
 use Wep\Obj;
+use Wep\Str;
 use Exception;
 
 class Module
@@ -118,7 +119,12 @@ class Module
             $content = call_user_func_array([static::class, $method], [
                 [
                     'module_name' => $module_name,
-                    'namespace' => $module_namespace
+                    'namespace' => $module_namespace,
+                    // Admin/PedidoItem → /admin/pedido-item
+                    'path' => '/' . join('/', array_map(
+                        fn ($part) => Str::camelToKebabCase($part),
+                        $name_parts
+                    )),
                 ]
             ]);
 
@@ -133,23 +139,34 @@ class Module
 
     private static function regularConfig($props)
     {
+        $path = $props['path'] ?? '/';
+
         return join("\n", [
             '<?php',
             self::editAlert(),
             "return [",
+            "    'title' => '" . addslashes($props['module_name'] ?? '') . "',",
             "    'db' => [",
-            "        'table' => '',", 
+            "        'table' => '',",
             "    ],",
             "    'middlewares' => [],",
+            "    // nomes de tabelas usadas com DB::table() ficam aqui (ex.: 'TABLE_PEDIDO_ITEMS' => 'pedido_items')",
             "    'constants' => [],",
             "    'routes' => [",
-            "        'path' => '',",
-            "        'methods' => ['get', 'create', 'update', 'delete'],",
+            "        'path' => '$path',",
+            "        // login e permissão do grupo (Admin > Grupo de usuários) em todas as rotas do módulo",
+            "        'use_middlewares' => ['isLogged', 'checkPermission'],",
             "        'groups' => [",
             "            [",
             "                'path' => '/',",
             "                'view' => 'index.js'",
-            "            ]",
+            "            ],",
+            "            // método do {$props['module_name']}Api.php (chamado no front por {$props['module_name']}Api.exemplo())",
+            "            [",
+            "                'path' => '/exemplo',",
+            "                'method' => 'exemplo',",
+            "                'label' => 'exemplo'",
+            "            ],",
             "        ]",
             "    ]",
             "];"
@@ -174,9 +191,9 @@ class Module
             'use Wep\Model;',
             ' ',
             '/**',
-            ' * Classe model responsável por implementar métodos',
-            ' * com operações de banco de dados.',
-            ' * Métodos implícitos: get, create, update, delete',
+            ' * Model da tabela de \'db\' => [\'table\' => ...] no config/module.php.',
+            ' * Ex.: ' . $module_name . '::find($id), ' . $module_name . '::create([\'fields\' => [...]]),',
+            ' * ' . $module_name . '::updateById($id, $fields), ' . $module_name . '::deleteById($id).',
             ' **/',
             'class '.$module_name,
             '{',
@@ -197,19 +214,32 @@ class Module
 
         return join("\n", [
             '<?php',
-            ' ',
+            '',
             "namespace ".$namespace.";",
-            ' ',
+            '',
             'use Wep\Controller;',
-            ' ',
+            'use Wep\Response;',
+            'use Wep\Router\Http\RouterHttpRequest;',
+            '',
             '/**',
-            ' * Classe controller responsável por implementar métodos',
-            ' * que lidam com as requisições vindas do front',
+            ' * Métodos chamados pelo front: cada rota com \'method\' no config/module.php.',
+            ' *',
+            ' * $request: dados enviados ($request->data(), $request->campo, $request->param(\'id\')),',
+            ' *           headers, ip(), routeMapData()... Os dados vêm do cliente: valide antes de usar.',
+            ' * $response: Response::success($data) / Response::error($mensagem) via $response->json().',
             ' */',
             "class ".$module_name."Api",
             '{',
             '    use Controller;',
-            ' ',
+            '',
+            '    public function exemplo(RouterHttpRequest $request, Response $response)',
+            '    {',
+            '        $nome = trim((string) ($request->nome ?? \'\'));',
+            '',
+            '        return $response->json(Response::success([',
+            '            \'nome\' => $nome,',
+            '        ]));',
+            '    }',
             '}'
         ]);
     }
@@ -224,9 +254,16 @@ class Module
         $module_name = $props['module_name'];
 
         return join("\n", [
-            "export default function ".$module_name. "(){",
-            " ",
-            "}"
+            'import { TemplateMain } from "components";',
+            '',
+            "export default function " . $module_name . "() {",
+            "    return (",
+            "        <TemplateMain title=\"" . addslashes($module_name) . "\">",
+            "            " . $module_name,
+            "        </TemplateMain>",
+            "    );",
+            "}",
+            ''
         ]);
     }
 

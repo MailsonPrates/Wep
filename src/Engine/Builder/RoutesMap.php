@@ -127,7 +127,9 @@ class RoutesMap
 
                     $new_routes['groups'][] = [
                         'path' => $sub_path,
-                        'method' => $apiMethod
+                        'method' => $apiMethod,
+                        // CRUD automático: o front monta o payload no contrato {id, fields}
+                        'crud' => $is_default_api,
                     ];
                 }
             }
@@ -259,13 +261,28 @@ class RoutesMap
         self::$warnings[] = $message;
     }
 
+    /**
+     * Caminho com barra no início. Sem ela ('teste'), as rotas da API saíam relativas
+     * ('teste/api/create/') e o navegador as resolvia a partir da página aberta: 404 sem aviso.
+     */
+    private static function leadingSlash(string $path, $route, string $field): string
+    {
+        if ( $path === "" || $path[0] === "/" ) return $path;
+
+        $module = $route->module_name ?? ($route->namespace ?? "?");
+
+        self::warn("Módulo '$module': $field '$path' sem barra no início; usando '/$path' (corrija o config/module.php)");
+
+        return "/" . $path;
+    }
+
     private static function buildMap($route)
     {
         $route = Obj::set($route);
 
         $response = [];
 
-        $prefix_path = $route->path ?? "/";
+        $prefix_path = self::leadingSlash((string) ($route->path ?? "/"), $route, "routes.path");
         $groups = $route->groups ?? [];
         $namespace = $route->namespace;
         $namespace_parts = explode("\\", $namespace);
@@ -286,7 +303,11 @@ class RoutesMap
             $item = Obj::set($item);
 
             $api = $item->method ?? false;
-            
+
+            if ( isset($item->path) && $item->path !== "" ){
+                $item->path = self::leadingSlash((string) $item->path, $route, "groups.path");
+            }
+
             $vendor_path = $is_vendor_module ? '/vendor' : '';
             $api_path = $api ? '/api' : '';
             $path = $vendor_path. $prefix_path .  $api_path . ($item->path ?? "");
@@ -338,6 +359,7 @@ class RoutesMap
                 'title' => $title,
                 'type' => $type,
                 'method' => $api,
+                'crud' => (bool) ($item->crud ?? false),
                 'custom' => $custom,
                 'resource' => $item->resource ?? null,
                 'namespace' => $namespace,
@@ -449,6 +471,7 @@ class RoutesMap
                             'method' => $method,
                             'path' => $path,
                             'resource' => $resource,
+                            'crud' => (bool) ($route->crud ?? false),
                             'custom' => $custom
                         ];
                     }

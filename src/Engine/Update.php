@@ -172,6 +172,9 @@ class Update
 
         $ok = BuildFile::php(APP_CONSTANTS_FILENAME, $data);
 
+        // constantes novas (ex.: nomes de tabela) já valem nesta execução
+        if ( $ok ) Core::defineAppConstants();
+
         return Obj::set([
             'error' => !$ok,
             'message' => $ok ? 'Arquivo de constantes criado' : 'Erro ao gravar o arquivo de constantes',
