@@ -9,3 +9,4 @@
 /tests export-ignore
 /phpunit.xml export-ignore
 /CHANGELOG.md export-ignore
+/CLAUDE.md export-ignore
