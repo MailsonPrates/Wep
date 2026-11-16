@@ -115,14 +115,14 @@ describe('matching', function () use ($echo) {
             ->and(router('GET', '/sobre/', $routes))->toBe('sobre[]');
     });
 
-    it('HEAD usa as rotas GET; método desconhecido cai no fallback sem warning', function () use ($echo) {
+    it('HEAD usa as rotas GET; método desconhecido dá 404 sem warning (não cai no fallback)', function () use ($echo) {
         $routes = function () use ($echo) {
             Route::get('/x', $echo('get'));
             Route::fallback(fn () => print('fallback'));
         };
 
         expect(router('HEAD', '/x/', $routes))->toBe('get[]')
-            ->and(router('PROPFIND', '/x/', $routes))->toBe('fallback');
+            ->and(fn () => router('PROPFIND', '/x/', $routes))->toThrow(NotFoundException::class);
     });
 
     it('sem rota e sem fallback lança NotFoundException (404)', function () {
@@ -175,5 +175,52 @@ describe('request e middlewares', function () {
         }
 
         expect($executed)->toBeFalse();
+    });
+});
+
+describe('rota desconhecida', function () {
+
+    $routes = function () {
+        Route::get('/x', fn () => print('x'));
+        Route::fallback(fn () => print('front'));
+    };
+
+    it('página (GET) usa o fallback com status 404 (antes 200)', function () use ($routes) {
+        http_response_code(200);
+
+        expect(router('GET', '/nao-existe/', $routes))->toBe('front')
+            ->and(http_response_code())->toBe(404);
+    });
+
+    it('API (/api/) não cai no fallback: NotFoundException 404', function () use ($routes) {
+        router('GET', '/admin/user/api/nao-existe/', $routes);
+    })->throws(NotFoundException::class, 'with method [GET] not found', 404);
+
+    it('POST desconhecido não cai no fallback (antes devolvia o HTML do front)', function () use ($routes) {
+        router('POST', '/admin/user/create/', $routes);
+    })->throws(NotFoundException::class);
+
+    it('pedido de JSON não cai no fallback', function () use ($routes) {
+        router('GET', '/nao-existe/', $routes, ['headers' => ['Accept' => 'application/json']]);
+    })->throws(NotFoundException::class);
+
+    it('a NotFoundException da API vira JSON 404 no ErrorHandler', function () use ($routes) {
+        $sent = [];
+
+        \Wep\Foundation\ErrorHandler::setSender(function ($body, $status, $type) use (&$sent) {
+            $sent = compact('body', 'status', 'type');
+        });
+
+        try {
+            router('POST', '/admin/user/api/create/', $routes);
+        } catch (NotFoundException $e) {
+            \Wep\Foundation\ErrorHandler::render($e);
+        } finally {
+            \Wep\Foundation\ErrorHandler::setSender(null);
+        }
+
+        expect($sent['status'])->toBe(404)
+            ->and($sent['type'])->toContain('application/json')
+            ->and(json_decode($sent['body'], true))->toMatchArray(['error' => true, 'http_code' => 404]);
     });
 });
