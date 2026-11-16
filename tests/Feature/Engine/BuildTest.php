@@ -112,6 +112,15 @@ describe('php app update', function () {
             ->and($constants['PEDIDO_DIR'])->toBe(['parts' => [['const', 'DIR_ROOT'], ['text', '/pedidos']]]);
     });
 
+    it('constantes valem na mesma execução do update (ex.: instalador usa o nome da tabela)', function () {
+        builderApp();
+        Update::handle();
+
+        expect(defined('PEDIDO_LIMITE'))->toBeTrue()
+            ->and(constant('PEDIDO_LIMITE'))->toBe(10)
+            ->and(constant('PEDIDO_DIR'))->toBe(DIR_ROOT . '/pedidos');
+    });
+
     it('hook que falha vira aviso e o build conclui', function () {
         builderApp(['after_build' => ['Falha', 'NaoExiste']]);
 

@@ -374,8 +374,11 @@ class Core
      * Constantes do app e dos módulos (storage/builds/constants.build.php, gerado pelo update).
      * Formato novo: dados ['NOME' => ['value' => x] | ['parts' => [['const', 'DIR_ROOT'], ['text', '/x']]]].
      * Formato antigo (define() gerado por concatenação) é só incluído.
+     *
+     * Também chamado pelo `php app update` depois de gerar o arquivo: as constantes novas valem na
+     * mesma execução (ex.: o instalador usa os nomes de tabela logo após o build).
      */
-    private static function defineAppConstants(): void
+    public static function defineAppConstants(): void
     {
         if (!file_exists(APP_CONSTANTS_FILENAME)) {
             return;

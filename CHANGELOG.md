@@ -28,6 +28,9 @@ seção **Mudanças de comportamento** de cada entrada.
   acrescentada e o update mostra um ALERTA indicando o módulo.
 - As rotas do CRUD automático (`'methods'`) saem marcadas com `crud: true` no mapa de APIs do front: só elas
   usam o contrato `{id, fields}`; os demais métodos recebem o payload como enviado.
+- As `'constants'` dos módulos passam a valer na mesma execução do update (`Core::defineAppConstants()`,
+  agora público, é chamado depois de gravar o arquivo). Antes, no `php app install`, o instalador da
+  aplicação rodava logo após o build sem as constantes novas (ex.: `DB::table(TABLE_MENU_ITEMS)` falhava).
 
 ### Limpeza
 
