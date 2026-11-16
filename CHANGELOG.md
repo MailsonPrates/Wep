@@ -3,7 +3,7 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
-## [Não lançado]
+## [2.1.1] - 2026-11-16
 
 ### Rota desconhecida responde 404
 
