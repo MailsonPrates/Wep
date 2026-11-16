@@ -3,7 +3,7 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
-## [Não lançado]
+## [2.1.0] - 2026-11-16
 
 ### Imagens enviadas: original + versão WebP em cache
 
