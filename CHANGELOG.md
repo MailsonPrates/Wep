@@ -3,6 +3,28 @@
 Todas as mudanças relevantes do `wep/framework`. Quebras de compatibilidade ficam sempre na
 seção **Mudanças de comportamento** de cada entrada.
 
+## [Não lançado]
+
+### Rota desconhecida responde 404
+
+Quando nenhuma rota casava, o roteador chamava sempre a rota `fallback` (no app, a página do front), para
+qualquer método e caminho, com status 200.
+
+#### Bugs corrigidos
+
+- **API inexistente respondia o HTML do front com 200**: `POST /admin/user/api/create/` de uma rota que não
+  existe (ex.: método removido, erro de digitação) parecia sucesso para quem só olhava o status, e o front
+  recebia HTML no lugar de JSON. Agora é `NotFoundException` (404), que o `ErrorHandler` responde em JSON
+  nas APIs: `{"error": true, "message": "Página não encontrada", "http_code": 404}`.
+
+#### Mudanças de comportamento
+
+1. O fallback só atende navegação de página: GET/HEAD sem pedir JSON (`ErrorHandler::wantsJson()`: caminho
+   com `/api/`, `Accept`/`Content-Type` JSON ou `X-Requested-With`). Os demais casos (POST, PUT, DELETE...,
+   APIs) lançam `NotFoundException` (404). Vale também para um `'fallback'` personalizado no `config/app.php`.
+2. A página desconhecida continua abrindo o front (que mostra a tela de 404), mas com status **404** em vez
+   de 200.
+
 ## [2.1.0] - 2026-11-16
 
 ### Imagens enviadas: original + versão WebP em cache

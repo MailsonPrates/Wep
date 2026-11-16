@@ -2,6 +2,7 @@
 
 namespace Wep\Router;
 
+use Wep\Foundation\ErrorHandler;
 use Wep\Http\RequestPath;
 use Wep\Router\RouteGroups;
 use Wep\Router\Traits\RouterHelpers;
@@ -370,21 +371,10 @@ class RouteCollection
      */
     protected function dispatchRoute(): mixed
     {
-        if (!$route = $this->currentRoute) {
-            if($fallbackRoute = $this->getByName('fallback')) {
-                $fallbackRoute->setRequest($this->newRequest($fallbackRoute, []));
-                return $this->executeRoute($fallbackRoute);
-            }
-            
-            $this->setHttpCode($this->httpCodes["notFound"]);
+        $route = $this->currentRoute;
 
-            $this->throwException(
-                "notFound",
-                NotFoundException::class,
-                "Route [%s] with method [%s] not found.",
-                $_SERVER["REQUEST_URI"],
-                $this->requestMethod
-            );
+        if (!$route) {
+            return $this->dispatchNotFound();
         }
 
         $this->executeMiddlewares($route);
@@ -496,6 +486,45 @@ class RouteCollection
      * 
      * @return void
      */
+    /**
+     * Nenhuma rota casou: sempre status 404.
+     *
+     * - página (GET/HEAD de quem não pede JSON): rota "fallback" (no app, a página do front, que mostra
+     *   a tela de 404). Antes respondia 200;
+     * - API (caminho com /api/, pedido de JSON) ou outro método: NotFoundException, que o ErrorHandler
+     *   responde em JSON nas APIs. Antes também caía no fallback e devolvia o HTML do front com 200.
+     */
+    protected function dispatchNotFound(): mixed
+    {
+        $this->setHttpCode($this->httpCodes["notFound"]);
+
+        $fallbackRoute = $this->getByName('fallback');
+
+        if ($fallbackRoute && $this->isPageRequest()) {
+            $fallbackRoute->setRequest($this->newRequest($fallbackRoute, []));
+
+            return $this->executeRoute($fallbackRoute);
+        }
+
+        return $this->throwException(
+            "notFound",
+            NotFoundException::class,
+            "Route [%s] with method [%s] not found.",
+            $_SERVER["REQUEST_URI"] ?? '',
+            $this->requestMethod
+        );
+    }
+
+    /** Navegação do navegador (e não uma chamada de API)? */
+    private function isPageRequest(): bool
+    {
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+
+        if (!in_array($method, ['GET', 'HEAD'], true)) return false;
+
+        return !ErrorHandler::wantsJson();
+    }
+
     protected function setHttpCode(Int $code = 200)
     {
         http_response_code($code);
